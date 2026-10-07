@@ -7,6 +7,7 @@ import { ghostRunner } from "./scene/GhostRunner";
 import { RaceScene, type SceneRunner } from "./scene/RaceScene";
 import type { RunnerStatus } from "./scene/RunnerSlot";
 import { PLAYER_COLOR } from "./scene/runnerTypes";
+import type { DrawingState } from "./skin/useDrawing";
 import { DrawingUpload } from "./ui/DrawingUpload";
 import { GameViewport, useWebGLAvailable } from "./ui/GameViewport";
 import { Hud, formatTime } from "./ui/Hud";
@@ -24,12 +25,8 @@ function safeLocalStorage(): Storage | null {
 
 const storage = safeLocalStorage();
 
-interface SoloGameProps {
-  drawingUrl: string | null;
-  onDrawing: (url: string) => void;
-}
-
-export function SoloGame({ drawingUrl, onDrawing }: SoloGameProps) {
+export function SoloGame({ drawing }: { drawing: DrawingState }) {
+  const drawingUrl = drawing.url;
   const [initialLoad] = useState(() => loadBest(storage));
   const [race, setRace] = useState<RaceSnapshot>(() => createRace());
   const raceRef = useRef(race);
@@ -102,6 +99,7 @@ export function SoloGame({ drawingUrl, onDrawing }: SoloGameProps) {
       animationScale: race.animationScale,
       running: race.phase === "RUNNING",
       tint: PLAYER_COLOR,
+      skinUrl: drawing.skinOn ? drawing.skin?.url : null,
     },
   ];
   if (best) runners.push(ghostRunner(best, raceStarted ? race.elapsedS * 1000 : 0, race.phase === "RUNNING"));
@@ -161,7 +159,13 @@ export function SoloGame({ drawingUrl, onDrawing }: SoloGameProps) {
           slider={input.slider}
           onSlider={input.setSlider}
         />
-        <DrawingUpload drawingUrl={drawingUrl} onDrawing={onDrawing} />
+        <DrawingUpload
+          drawingUrl={drawingUrl}
+          onDrawing={drawing.setUrl}
+          skinOn={drawing.skinOn}
+          onSkinOn={drawing.setSkinOn}
+          skinLabel="Wear it on my runner (stays on this device)"
+        />
       </aside>
     </main>
   );

@@ -284,6 +284,33 @@ describe("7-player room over the fake transport", () => {
     expect(late.results!.map((r) => [r.userId, r.rank, r.status, r.finishTimeMs])).toEqual(hostBoard);
   });
 
+  it("shares skins through room storage, never through realtime messages", async () => {
+    const players = await room(2);
+    const png = new Blob([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], { type: "image/png" });
+    await players[1].session.setSkin(png);
+    await advance(200, players);
+    expect(players[1].session.getView().skinStatus).toBe("shared");
+    for (const p of [players[0], players[2]]) {
+      const url = p.session.getView().skins.u1;
+      expect(url).toMatch(/^blob:/);
+      const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+      expect([...bytes]).toEqual([137, 80, 78, 71, 1, 2, 3]);
+    }
+    expect(players[1].session.getView().skins.u1).toBeUndefined();
+    expect(hub.log.some((e) => JSON.stringify(e).includes("PNG"))).toBe(false);
+
+    // Turning sharing off removes it everywhere; leaving deletes the stored file.
+    await players[1].session.setSkin(null);
+    await advance(200, players);
+    expect(players[0].session.getView().skins.u1).toBeUndefined();
+    expect(server.skins.size).toBe(0);
+    await players[2].session.setSkin(png);
+    await advance(200, players);
+    expect(server.skins.size).toBe(1);
+    await players[2].session.leave();
+    expect(server.skins.size).toBe(0);
+  });
+
   it("supports a rematch with a new race id", async () => {
     const players = await room(1);
     await allReady(players);

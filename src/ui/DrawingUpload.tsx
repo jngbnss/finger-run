@@ -5,6 +5,12 @@ interface DrawingUploadProps {
   drawingUrl: string | null;
   /** Receives a decoded, validated object URL; the owner revokes the previous one. */
   onDrawing: (url: string) => void;
+  /** Whether the drawing is worn as the runner skin. */
+  skinOn: boolean;
+  onSkinOn: (on: boolean) => void;
+  /** Label for the skin toggle; differs between SOLO (local) and ONLINE (shared). */
+  skinLabel: string;
+  skinNote?: string | null;
 }
 
 async function decodes(url: string): Promise<boolean> {
@@ -18,7 +24,7 @@ async function decodes(url: string): Promise<boolean> {
   }
 }
 
-export function DrawingUpload({ drawingUrl, onDrawing }: DrawingUploadProps) {
+export function DrawingUpload({ drawingUrl, onDrawing, skinOn, onSkinOn, skinLabel, skinNote }: DrawingUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -50,9 +56,11 @@ export function DrawingUpload({ drawingUrl, onDrawing }: DrawingUploadProps) {
 
   return (
     <section className="card upload">
-      <h2>Finish-line drawing</h2>
+      <h2>Drawing &amp; skin</h2>
       <p className="notice">3D conversion is not connected in this prototype.</p>
-      <p className="hint">Your PNG/JPG (max 5MB) is shown as a flat image on the finish banner. It stays in this browser tab.</p>
+      <p className="hint">
+        Your PNG/JPG (max 5MB) appears on the finish banner and, as a skin, on your runner&apos;s chest and back.
+      </p>
       <input
         ref={input}
         type="file"
@@ -69,10 +77,19 @@ export function DrawingUpload({ drawingUrl, onDrawing }: DrawingUploadProps) {
           {error}
         </p>
       )}
+      <label className="check">
+        <input type="checkbox" checked={skinOn} onChange={(e) => onSkinOn(e.target.checked)} disabled={!drawingUrl} />
+        <span>{skinLabel}</span>
+      </label>
+      {skinNote && (
+        <p className="hint" role="status" data-testid="skin-note">
+          {skinNote}
+        </p>
+      )}
       {drawingUrl && (
         <figure className="preview">
           <img src={drawingUrl} alt="Uploaded drawing preview" />
-          <figcaption>Shown on the finish banner as a 2D image</figcaption>
+          <figcaption>A flat 2D image on the banner{skinOn ? " and your runner" : ""}</figcaption>
         </figure>
       )}
     </section>

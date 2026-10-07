@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { OnlineGame } from "./OnlineGame";
 import { SoloGame } from "./SoloGame";
 import { normalizeRoomCode } from "./multiplayer/protocol";
+import { useDrawing } from "./skin/useDrawing";
 
 type Mode = "SOLO" | "ONLINE";
 
@@ -17,21 +18,7 @@ export function App() {
   const [linkCode] = useState(roomFromUrl);
   // A shared ?room= link goes straight to ONLINE; otherwise pick a mode first.
   const [mode, setMode] = useState<Mode | null>(linkCode ? "ONLINE" : null);
-  const [drawingUrl, setDrawingUrl] = useState<string | null>(null);
-  const drawingRef = useRef<string | null>(null);
-
-  useEffect(
-    () => () => {
-      if (drawingRef.current) URL.revokeObjectURL(drawingRef.current);
-    },
-    [],
-  );
-
-  const handleDrawing = useCallback((url: string) => {
-    if (drawingRef.current) URL.revokeObjectURL(drawingRef.current);
-    drawingRef.current = url;
-    setDrawingUrl(url);
-  }, []);
+  const drawing = useDrawing();
 
   return (
     <div className="app">
@@ -65,8 +52,8 @@ export function App() {
           </div>
         </main>
       )}
-      {mode === "SOLO" && <SoloGame drawingUrl={drawingUrl} onDrawing={handleDrawing} />}
-      {mode === "ONLINE" && <OnlineGame initialCode={linkCode ?? ""} drawingUrl={drawingUrl} />}
+      {mode === "SOLO" && <SoloGame drawing={drawing} />}
+      {mode === "ONLINE" && <OnlineGame initialCode={linkCode ?? ""} drawing={drawing} />}
     </div>
   );
 }

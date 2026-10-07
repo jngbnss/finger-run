@@ -80,6 +80,10 @@ export interface SessionView {
   connection: ChannelStatus;
   notice: SessionNotice | null;
   results: RacePlayerView[] | null;
+  /** Other players' skins as object URLs, by user id. */
+  skins: Record<string, string>;
+  /** State of sharing my own skin. */
+  skinStatus: "off" | "uploading" | "shared" | "error";
 }
 
 /** Delay rendering behind the newest snapshot so there is always a pair to interpolate. */
@@ -124,6 +128,10 @@ export class RoomSession {
   private connection: ChannelStatus = "CONNECTING";
   private hostMissingSince: number | null = null;
   private listeners = new Set<() => void>();
+  private skinToken: string | null = null;
+  private skinStatus: SessionView["skinStatus"] = "off";
+  private skinJob: Promise<void> = Promise.resolve();
+  private remoteSkins = new Map<string, { token: string; url: string | null }>();
 
   static async create(deps: SessionDeps, nickname: string): Promise<RoomSession> {
     const me = await deps.backend.signIn();
@@ -209,9 +217,39 @@ export class RoomSession {
     await this.setReady(true);
   }
 
+  /**
+   * Shares (or stops sharing) my skin with this room. The PNG goes to room-private
+   * storage; presence only carries a version token so others know to fetch it.
+   */
+  setSkin(png: Blob | null): Promise<void> {
+    this.skinJob = this.skinJob.then(async () => {
+      if (this.phase === "LEFT") return;
+      try {
+        if (png) {
+          this.skinStatus = "uploading";
+          this.notify();
+          await this.deps.backend.uploadSkin(this.room.id, png);
+          this.skinToken = `${this.deps.now()}-${png.size}`;
+          this.skinStatus = "shared";
+        } else if (this.skinToken !== null || this.skinStatus === "error") {
+          this.skinToken = null;
+          this.skinStatus = "off";
+          await this.deps.backend.deleteSkin(this.room.id);
+        }
+      } catch {
+        this.skinStatus = "error";
+        this.skinToken = null;
+      }
+      this.trackPresence();
+      this.notify();
+    });
+    return this.skinJob;
+  }
+
   async leave() {
     this.phase = "LEFT";
     try {
+      if (this.skinToken !== null) await this.deps.backend.deleteSkin(this.room.id).catch(() => {});
       await this.deps.backend.leaveRoom(this.room.id);
       this.sendRoomEvent({ v: PROTOCOL_VERSION, type: "room-changed" });
     } finally {
@@ -222,6 +260,8 @@ export class RoomSession {
   dispose() {
     this.channel.close();
     this.listeners.clear();
+    for (const skin of this.remoteSkins.values()) if (skin.url) URL.revokeObjectURL(skin.url);
+    this.remoteSkins.clear();
   }
 
   clearNotice() {
@@ -368,6 +408,10 @@ export class RoomSession {
       connection: this.connection,
       notice: this.notice,
       results: this.finalSnapshot ? decorate(this.finalSnapshot.players) : null,
+      skins: Object.fromEntries(
+        [...this.remoteSkins].filter(([, s]) => s.url !== null).map(([id, s]) => [id, s.url as string]),
+      ),
+      skinStatus: this.skinStatus,
     };
   }
 
@@ -412,6 +456,7 @@ export class RoomSession {
       lane: mine?.lane ?? 0,
       ready: mine?.ready ?? false,
       cameraReady: this.cameraReady,
+      skin: this.skinToken,
     });
   }
 
@@ -498,8 +543,39 @@ export class RoomSession {
     this.notify();
   }
 
+  /** Fetches skins whose token changed; drops skins of players who stopped sharing. */
+  private syncRemoteSkins(states: PresenceState[]) {
+    const wanted = new Map(
+      states.filter((s) => s.userId !== this.me && typeof s.skin === "string").map((s) => [s.userId, s.skin as string]),
+    );
+    for (const [userId, skin] of this.remoteSkins) {
+      if (wanted.has(userId)) continue;
+      // Stopped sharing or left; fetched again if they come back with a skin.
+      if (skin.url) URL.revokeObjectURL(skin.url);
+      this.remoteSkins.delete(userId);
+    }
+    for (const [userId, token] of wanted) {
+      if (this.remoteSkins.get(userId)?.token === token) continue;
+      const previous = this.remoteSkins.get(userId);
+      this.remoteSkins.set(userId, { token, url: previous?.url ?? null });
+      this.deps.backend
+        .downloadSkin(this.room.id, userId)
+        .then((blob) => {
+          const entry = this.remoteSkins.get(userId);
+          if (!entry || entry.token !== token || this.phase === "LEFT") return;
+          if (entry.url) URL.revokeObjectURL(entry.url);
+          entry.url = URL.createObjectURL(blob);
+          this.notify();
+        })
+        .catch(() => {
+          // Skins are cosmetic: keep racing without it.
+        });
+    }
+  }
+
   private onPresence(states: PresenceState[]) {
     this.presence = new Map(states.map((s) => [s.userId, s]));
+    this.syncRemoteSkins(states);
     if (states.some((s) => s.v !== PROTOCOL_VERSION)) this.notice = noticeFor("VERSION_MISMATCH");
     // Someone joined or left: refresh the authoritative room soon.
     const known = new Set(this.room.players.map((p) => p.userId));

@@ -776,3 +776,27 @@ button.link {
     max-height: 140px;
   }
 }
+
+/* Skins */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.skin-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 2px solid;
+  object-fit: cover;
+  background: #fff;
+}

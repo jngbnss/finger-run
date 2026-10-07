@@ -10,9 +10,10 @@ interface LobbyProps {
   onReady: (ready: boolean) => void;
   onStart: () => void;
   onLeave: () => void;
+  skinOf: (userId: string, isMe: boolean) => string | null;
 }
 
-export function Lobby({ view, shareUrl, busy, onReady, onStart, onLeave }: LobbyProps) {
+export function Lobby({ view, shareUrl, busy, onReady, onStart, onLeave, skinOf }: LobbyProps) {
   const [copied, setCopied] = useState(false);
   const me = view.players.find((p) => p.isMe);
   const allReady = view.players.every((p) => p.ready);
@@ -45,7 +46,11 @@ export function Lobby({ view, shareUrl, busy, onReady, onStart, onLeave }: Lobby
       <ul className="player-list" aria-label={`Players ${view.players.length} of ${MAX_PLAYERS}`} data-testid="player-list">
         {view.players.map((p) => (
           <li key={p.userId} className={p.isMe ? "me" : ""}>
-            <span className="lane-dot" style={{ background: laneColor(p.lane) }} aria-hidden />
+            {skinOf(p.userId, p.isMe) ? (
+              <img className="skin-thumb" src={skinOf(p.userId, p.isMe)!} alt={`${p.nickname}'s skin`} style={{ borderColor: laneColor(p.lane) }} />
+            ) : (
+              <span className="lane-dot" style={{ background: laneColor(p.lane) }} aria-hidden />
+            )}
             <span className="lane-no">Lane {p.lane}</span>
             <span className="name">
               {p.nickname}

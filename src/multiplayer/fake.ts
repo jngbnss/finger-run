@@ -19,6 +19,7 @@ import {
 import {
   inputTopic,
   roomTopic,
+  skinPath,
   snapshotTopic,
   type ChannelStatus,
   type RealtimeTransport,
@@ -59,6 +60,8 @@ const STALE_ROOM_MS = 10 * 60 * 1000;
 
 export class FakeRoomServer {
   private rooms = new Map<string, FakeRoom>();
+  /** Skin files by "roomId/userId.png"; data is opaque (Blob in Node tests, base64 over the browser bridge). */
+  readonly skins = new Map<string, unknown>();
   private ids = 0;
   private joinOrder = 0;
 
@@ -298,6 +301,23 @@ export class FakeRoomServer {
     return this.now();
   }
 
+  /** Mirrors the storage policies: members write only their own file and read files in their room. */
+  uploadSkin(uid: string, roomId: string, data: unknown) {
+    this.member(uid, roomId);
+    this.skins.set(skinPath(roomId, uid), data);
+  }
+
+  downloadSkin(uid: string, roomId: string, owner: string): unknown {
+    this.member(uid, roomId);
+    const data = this.skins.get(skinPath(roomId, owner));
+    if (data === undefined) throw new RoomError("UNKNOWN", "Skin not found");
+    return data;
+  }
+
+  deleteSkin(uid: string, roomId: string) {
+    this.skins.delete(skinPath(roomId, uid));
+  }
+
   /** Test helper. */
   roomByCode(code: string): RoomState | null {
     const room = [...this.rooms.values()].find((r) => r.code === code);
@@ -510,6 +530,9 @@ export function createFakeClient(server: FakeRoomServer, hub: FakeRealtimeHub, u
     cancelRace: (roomId, raceId, reason) => online(() => server.cancelRace(userId, roomId, raceId, reason)),
     heartbeat: (roomId) => online(() => server.heartbeat(userId, roomId)),
     serverNow: () => online(() => server.serverNow()),
+    uploadSkin: (roomId, png) => online(() => server.uploadSkin(userId, roomId, png)),
+    downloadSkin: (roomId, owner) => online(() => server.downloadSkin(userId, roomId, owner) as Blob),
+    deleteSkin: (roomId) => online(() => server.deleteSkin(userId, roomId)),
   };
 
   const transport: RealtimeTransport = {

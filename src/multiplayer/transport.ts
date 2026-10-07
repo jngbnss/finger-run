@@ -15,7 +15,13 @@ export interface RoomBackend {
   heartbeat(roomId: string): Promise<RoomState>;
   /** Server epoch milliseconds. */
   serverNow(): Promise<number>;
+  /** Stores this user's skin PNG for the room (room members only can read it). */
+  uploadSkin(roomId: string, png: Blob): Promise<void>;
+  downloadSkin(roomId: string, userId: string): Promise<Blob>;
+  deleteSkin(roomId: string): Promise<void>;
 }
+
+export const skinPath = (roomId: string, userId: string) => `${roomId}/${userId}.png`;
 
 export type ChannelStatus = "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 

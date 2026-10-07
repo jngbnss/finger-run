@@ -1,5 +1,5 @@
 /** Bump when message shapes change; peers on another version get VERSION_MISMATCH. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const MAX_PLAYERS = 7;
 export const MIN_PLAYERS = 2;
@@ -133,6 +133,8 @@ export interface PresenceState {
   lane: number;
   ready: boolean;
   cameraReady: boolean;
+  /** Changes whenever the player uploads a new skin; null when not sharing one. */
+  skin: string | null;
 }
 
 export const NICKNAME_MAX = 16;

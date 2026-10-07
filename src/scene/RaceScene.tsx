@@ -15,6 +15,7 @@ export interface SceneRunner {
   label?: string;
   isLocal?: boolean;
   ghost?: boolean;
+  skinUrl?: string | null;
 }
 
 interface RaceSceneProps {
@@ -89,6 +90,7 @@ export function RaceScene({
           tint={r.tint}
           label={r.label}
           isLocal={r.isLocal}
+          skinUrl={r.skinUrl}
           onStatus={r.ghost || (r.isLocal === false) ? undefined : onRunnerStatus}
         />
       ))}

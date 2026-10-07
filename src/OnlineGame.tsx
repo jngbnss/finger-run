@@ -13,6 +13,8 @@ import { Lobby } from "./ui/Lobby";
 import { OnlineEntry, rememberNickname } from "./ui/OnlineEntry";
 import { ResultsBoard, Standings } from "./ui/Standings";
 import { useReducedMotion } from "./ui/useReducedMotion";
+import type { DrawingState } from "./skin/useDrawing";
+import { DrawingUpload } from "./ui/DrawingUpload";
 
 const ENTRY_ERRORS: Partial<Record<ErrorCode, string>> = {
   ROOM_NOT_FOUND: "No room with that code. Check the code or ask the host for the link.",
@@ -45,10 +47,18 @@ const LANE_WIDTH = 1.3;
 
 interface OnlineGameProps {
   initialCode: string;
-  drawingUrl: string | null;
+  drawing: DrawingState;
 }
 
-export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
+const SKIN_NOTES: Record<SessionView["skinStatus"], string | null> = {
+  off: null,
+  uploading: "Sharing your skin with the room…",
+  shared: "Your skin is shared with this room only and deleted when you leave.",
+  error: "Could not share your skin (storage not set up?). Others see the plain robot.",
+};
+
+export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
+  const drawingUrl = drawing.url;
   const deps = useMemo(createRealtimeDeps, []);
   const input = useInputPower();
   const sourceRef = useRef(input.source);
@@ -115,6 +125,12 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
   sessionRef.current = session;
   useEffect(() => () => void sessionRef.current?.leave().catch(() => {}), []);
 
+  // Share the skin while the toggle is on; stop sharing when it is turned off.
+  const sharedBlob = drawing.skinOn ? (drawing.skin?.blob ?? null) : null;
+  useEffect(() => {
+    if (session) void session.setSkin(sharedBlob);
+  }, [session, sharedBlob]);
+
   useEffect(() => {
     session?.setCameraReady(input.mode === "CAMERA" && input.hand.view.status === "RUNNING");
   }, [session, input.mode, input.hand.view.status]);
@@ -142,6 +158,18 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
   const inputPanel = (
     <InputPanel mode={input.mode} onMode={input.setMode} hand={input.hand} slider={input.slider} onSlider={input.setSlider} />
   );
+  const drawingPanel = (
+    <DrawingUpload
+      drawingUrl={drawingUrl}
+      onDrawing={drawing.setUrl}
+      skinOn={drawing.skinOn}
+      onSkinOn={drawing.setSkinOn}
+      skinLabel="Wear it as my skin and share it with this room"
+      skinNote={view ? SKIN_NOTES[view.skinStatus] : null}
+    />
+  );
+  const mySkinUrl = drawing.skinOn ? (drawing.skin?.url ?? null) : null;
+  const skinOf = (userId: string, isMe: boolean) => (isMe ? mySkinUrl : (view?.skins[userId] ?? null));
 
   if (!session || !view) {
     return (
@@ -171,6 +199,7 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
             onJoin={(code, nickname) => deps && open(() => RoomSession.join({ ...deps, now: Date.now }, code, nickname), nickname)}
           />
           {inputPanel}
+          {drawingPanel}
         </aside>
       </main>
     );
@@ -192,6 +221,7 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
           tint: laneColor(r.lane),
           label: `${r.rank}. ${r.nickname}`,
           isLocal: r.isMe,
+          skinUrl: skinOf(r.userId, r.isMe),
         };
       })
     : view.players.map((p) => ({
@@ -205,6 +235,7 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
         tint: laneColor(p.lane),
         label: p.nickname,
         isLocal: p.isMe,
+        skinUrl: skinOf(p.userId, p.isMe),
       }));
 
   const showNotice = view.notice && !(view.stale && view.notice.code === "CONNECTION_LOST");
@@ -299,9 +330,11 @@ export function OnlineGame({ initialCode, drawingUrl }: OnlineGameProps) {
             onReady={(ready) => act(() => session.setReady(ready))}
             onStart={() => act(() => session.start())}
             onLeave={leave}
+            skinOf={skinOf}
           />
         )}
         {inputPanel}
+        {view.phase !== "RACE" && drawingPanel}
         {error && (
           <div className="error-box" role="alert">
             <strong>{error.code}</strong>

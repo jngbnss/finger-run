@@ -54,6 +54,15 @@ The E2E test "ONLINE without Supabase settings" expects a build without `.env.lo
 
 A race ends at 100m (FINISHED) or after 60 seconds (DNF). DNF runs are never saved.
 
+### Skins (your drawing on your runner)
+
+Upload a PNG/JPG in **Drawing & skin**. It is cropped to a 256px square and shown as a patch on your robot's chest and back (it moves with the run animation), plus on the finish banner. 3D conversion is not connected.
+
+- **SOLO:** the skin stays on your device.
+- **ONLINE:** with "Wear it as my skin and share it with this room" on (default), the 256px PNG is uploaded to the private Supabase Storage bucket `skins` at `{room_id}/{user_id}.png`. Only members of that room can read it, only you can write or delete it, and the app deletes it when you leave or untick the box. Presence carries only a version token; images never travel over Realtime. The lobby shows each player's skin as a thumbnail.
+- Setup: run `supabase/migrations/20261007010000_finger_run_skins.sql` in the SQL Editor (after the rooms migration). Without it, racing still works and the UI says the skin could not be shared.
+- Files from players who closed the tab without leaving stay in Storage until removed (each at most 256 KB).
+
 ### Camera privacy
 
 Video frames and hand landmarks never leave the browser. Only the MediaPipe runtime (jsDelivr) and the hand model (Google storage) are downloaded. Online messages carry only power numbers, distances, and times.
@@ -107,7 +116,7 @@ The heartbeat runs every 2s. A lobby or finished room with no heartbeat for 10 m
 
 1. Create a project at https://supabase.com (Free plan is enough).
 2. **Authentication → Sign In / Providers → Allow anonymous sign-ins**: enable.
-3. Apply the migration. Either paste `supabase/migrations/20261007000000_finger_run_rooms.sql` into **SQL Editor** and run it, or use the CLI: `supabase link --project-ref <ref>` then `supabase db push`. The file is safe to run again.
+3. Apply the migrations in order. Either paste `supabase/migrations/20261007000000_finger_run_rooms.sql` and then `20261007010000_finger_run_skins.sql` into **SQL Editor** and run each, or use the CLI: `supabase link --project-ref <ref>` then `supabase db push`. Both files are safe to run again.
 4. **Realtime → Settings**: turn off "Allow public access" so only the private, policy-checked channels are used (recommended).
 5. **Project Settings → API**: copy the Project URL and the **publishable (anon) key**. Never use the `service_role` / secret key in this app.
 6. Local: put them in `.env.local` (see `.env.example`), then `npm run dev`.

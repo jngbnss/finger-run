@@ -45,6 +45,9 @@ export async function openPlayer(
     cancelRace: (roomId: string, raceId: string, reason: string) => server.cancelRace(userId, roomId, raceId, reason),
     heartbeat: (roomId: string) => server.heartbeat(userId, roomId),
     serverNow: () => server.serverNow(),
+    uploadSkin: (roomId: string, base64: string) => server.uploadSkin(userId, roomId, base64),
+    downloadSkin: (roomId: string, owner: string) => server.downloadSkin(userId, roomId, owner),
+    deleteSkin: (roomId: string) => server.deleteSkin(userId, roomId),
   };
 
   await context.exposeBinding("__frBridge", async (_source, call: BridgeCall) => {

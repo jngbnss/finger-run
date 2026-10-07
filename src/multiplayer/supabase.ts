@@ -11,6 +11,7 @@ import {
 } from "./protocol";
 import {
   inputTopic,
+  skinPath,
   roomTopic,
   snapshotTopic,
   type RealtimeTransport,
@@ -90,7 +91,33 @@ export class SupabaseRoomBackend implements RoomBackend {
   async serverNow() {
     return Number(await this.rpc<number>("server_now"));
   }
+
+  private async userId() {
+    const { data } = await this.sb.auth.getSession();
+    if (!data.session) throw new RoomError("CONNECTION_LOST", "Not signed in");
+    return data.session.user.id;
+  }
+
+  async uploadSkin(roomId: string, png: Blob) {
+    const { error } = await this.sb.storage
+      .from(SKIN_BUCKET)
+      .upload(skinPath(roomId, await this.userId()), png, { upsert: true, contentType: "image/png", cacheControl: "0" });
+    if (error) throw new RoomError("UNKNOWN", `Skin upload failed: ${error.message}`);
+  }
+
+  async downloadSkin(roomId: string, userId: string) {
+    const { data, error } = await this.sb.storage.from(SKIN_BUCKET).download(skinPath(roomId, userId));
+    if (error || !data) throw new RoomError("UNKNOWN", `Skin download failed: ${error?.message ?? "empty"}`);
+    return data;
+  }
+
+  async deleteSkin(roomId: string) {
+    await this.sb.storage.from(SKIN_BUCKET).remove([skinPath(roomId, await this.userId())]);
+  }
 }
+
+/** Private bucket created by the skins migration. */
+export const SKIN_BUCKET = "skins";
 
 const privateBroadcast = { config: { private: true, broadcast: { self: false, ack: false } } };
 

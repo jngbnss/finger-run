@@ -33,6 +33,18 @@ const SUPABASE_STUBS = `
   grant select, insert on realtime.messages to authenticated;
   grant usage on sequence realtime.messages_id_seq to authenticated;
   grant execute on function auth.uid(), realtime.topic() to anon, authenticated;
+  create schema if not exists storage;
+  create table if not exists storage.buckets (
+    id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]
+  );
+  create table if not exists storage.objects (
+    id bigserial primary key, bucket_id text references storage.buckets(id), name text not null, owner uuid,
+    unique (bucket_id, name)
+  );
+  alter table storage.objects enable row level security;
+  grant usage on schema storage to authenticated;
+  grant select, insert, update, delete on storage.objects to authenticated;
+  grant usage on sequence storage.objects_id_seq to authenticated;
 `;
 
 let db: PGlite;
@@ -76,7 +88,9 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
-  await db.exec("reset role; drop table if exists public.room_players cascade; drop table if exists public.rooms cascade;");
+  await db.exec(
+    "reset role; delete from storage.objects; drop table if exists public.room_players cascade; drop table if exists public.rooms cascade;",
+  );
   await db.exec(migration);
 });
 
@@ -200,6 +214,34 @@ describe("supabase migration", () => {
   it("returns server time in epoch milliseconds", async () => {
     const r = await as(1, "select public.server_now() as t");
     expect(Math.abs((r.rows[0].t as number) - Date.now())).toBeLessThan(5000);
+  });
+
+  it("keeps skins private to the room and writable only by their owner", async () => {
+    const room = await rpc(1, "public.create_room($1)", ["Host"]);
+    await rpc(2, "public.join_room($1, $2)", [room.code, "Bob"]);
+    const path = (user: number) => `${room.id}/${uid(user)}.png`;
+    const put = (user: number, name: string) =>
+      as(user, "insert into storage.objects (bucket_id, name, owner) values ('skins', $1, $2)", [name, uid(user)]);
+    const bucket = await db.query<{ public: boolean; file_size_limit: number }>("select public, file_size_limit from storage.buckets where id = 'skins'");
+    expect(bucket.rows[0]).toEqual({ public: false, file_size_limit: 262144 });
+
+    await expect(put(1, path(1))).resolves.toBeDefined();
+    await expect(put(2, path(2))).resolves.toBeDefined();
+    // Not your own file, wrong shape, or not a member: refused.
+    await expect(put(2, path(1).replace(".png", "x.png"))).rejects.toThrow(/row-level security/);
+    await expect(put(1, `${room.id}/${uid(2)}.png`)).rejects.toThrow(/row-level security|duplicate/);
+    await expect(put(9, `${room.id}/${uid(9)}.png`)).rejects.toThrow(/row-level security/);
+
+    const seen = await as(2, "select name from storage.objects where bucket_id = 'skins' order by name");
+    expect(seen.rows.map((r) => r.name).sort()).toEqual([path(1), path(2)].sort());
+    const outsider = await as(9, "select name from storage.objects where bucket_id = 'skins'");
+    expect(outsider.rows).toHaveLength(0);
+
+    // Only the owner deletes.
+    await as(2, "delete from storage.objects where name = $1", [path(1)]);
+    expect((await db.query("select 1 from storage.objects where name = $1", [path(1)])).rows).toHaveLength(1);
+    await as(1, "delete from storage.objects where name = $1", [path(1)]);
+    expect((await db.query("select 1 from storage.objects where name = $1", [path(1)])).rows).toHaveLength(0);
   });
 
   it("restricts realtime topics to members, host snapshots and own inputs", async () => {
