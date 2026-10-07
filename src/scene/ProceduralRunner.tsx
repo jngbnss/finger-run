@@ -1,15 +1,13 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { SkinBadge, useSkinTexture } from "./SkinBadge";
 import { GHOST_COLOR, GHOST_OPACITY, PLAYER_COLOR, type RunnerVisualProps } from "./runnerTypes";
 
 /** Strides per second at animationScale 1. */
 const BASE_CADENCE_HZ = 1.4;
 
 /** Stick robot built from primitives; faces +X. Fallback when the GLB is unusable. */
-export function ProceduralRunner({ animationScale, running, ghost, tint, skinUrl }: RunnerVisualProps) {
-  const skin = useSkinTexture(ghost ? null : skinUrl);
+export function ProceduralRunner({ animationScale, running, ghost, tint }: RunnerVisualProps) {
   const body = useRef<Group>(null);
   const leftLeg = useRef<Group>(null);
   const rightLeg = useRef<Group>(null);
@@ -65,16 +63,6 @@ export function ProceduralRunner({ animationScale, running, ghost, tint, skinUrl
         <boxGeometry args={[0.3, 0.55, 0.42]} />
         {material(main)}
       </mesh>
-      {/* drawing on chest (+X) and back (-X) */}
-      {skin &&
-        ([
-          [0.152, Math.PI / 2],
-          [-0.152, -Math.PI / 2],
-        ] as const).map(([x, yaw]) => (
-          <group key={x} position={[x, 1.3, 0]} rotation={[0, yaw, 0]}>
-            <SkinBadge texture={skin} size={0.34} frameColor={main} />
-          </group>
-        ))}
       {/* head with visor */}
       <mesh position={[0, 1.78, 0]} castShadow={!ghost}>
         <sphereGeometry args={[0.17, 16, 12]} />

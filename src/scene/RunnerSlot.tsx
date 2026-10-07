@@ -1,5 +1,6 @@
-import { Component, Suspense, useEffect, useRef, type ReactNode } from "react";
+import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatedRunner } from "./AnimatedRunner";
+import { DrawnRunner, type CharacterSkin } from "./DrawnRunner";
 import { NameTag } from "./NameTag";
 import { ProceduralRunner } from "./ProceduralRunner";
 import type { RunnerVisualProps } from "./runnerTypes";
@@ -46,12 +47,16 @@ interface RunnerSlotProps extends RunnerVisualProps {
   label?: string;
   /** Highlight ring and filled name tag for the local player in online races. */
   isLocal?: boolean;
+  /** Player's drawing; replaces the robot when present. */
+  character?: CharacterSkin | null;
   onStatus?: (status: RunnerStatus) => void;
 }
 
 /** Outer group owns world position; GLB runner with procedural fallback inside. */
-export function RunnerSlot({ laneZ, label, isLocal, onStatus, ...visual }: RunnerSlotProps) {
+export function RunnerSlot({ laneZ, label, isLocal, character, onStatus, ...visual }: RunnerSlotProps) {
   const procedural = <ProceduralRunner {...visual} />;
+  const [characterFailed, setCharacterFailed] = useState<string | null>(null);
+  const showCharacter = character && !visual.ghost && characterFailed !== character.url;
   const color = visual.tint ?? "#ffffff";
   return (
     <group position={[visual.distanceM, 0, laneZ]}>
@@ -66,6 +71,20 @@ export function RunnerSlot({ laneZ, label, isLocal, onStatus, ...visual }: Runne
         </mesh>
       )}
       {label && <NameTag text={label} color={color} highlight={isLocal} />}
+      {showCharacter ? (
+        <RunnerBoundary
+          key={character.url}
+          fallback={procedural}
+          onError={() => setCharacterFailed(character.url)}
+        >
+          <DrawnRunner
+            character={character}
+            animationScale={visual.animationScale}
+            running={visual.running}
+            onError={() => setCharacterFailed(character.url)}
+          />
+        </RunnerBoundary>
+      ) : (
       <RunnerBoundary
         fallback={procedural}
         onError={(reason) => onStatus?.({ kind: "fallback", reason })}
@@ -82,6 +101,7 @@ export function RunnerSlot({ laneZ, label, isLocal, onStatus, ...visual }: Runne
           <OnMount onMount={() => onStatus?.({ kind: "ready" })} />
         </Suspense>
       </RunnerBoundary>
+      )}
     </group>
   );
 }

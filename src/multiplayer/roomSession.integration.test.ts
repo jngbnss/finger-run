@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RACE_DISTANCE_M, TIMEOUT_S } from "../game/raceEngine";
+import { JOINTS, encodeRig, type Joints } from "../character/skeleton";
 import { createFakeClient, FakeRealtimeHub, FakeRoomServer } from "./fake";
 import { RoomError } from "./protocol";
 import { RoomSession, type SessionDeps } from "./roomSession";
@@ -288,12 +289,17 @@ describe("7-player room over the fake transport", () => {
   it("shares skins through room storage, never through realtime messages", async () => {
     const players = await room(2);
     const png = new Blob([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], { type: "image/png" });
-    await players[1].session.setSkin(png);
+    const rig = encodeRig(
+      Object.fromEntries(JOINTS.map((j, i) => [j, { x: (i + 1) / 20, y: (i + 1) / 20 }])) as Joints,
+      false,
+    );
+    await players[1].session.setSkin({ png, rig });
     await advance(200, players);
     expect(players[1].session.getView().skinStatus).toBe("shared");
     for (const p of [players[0], players[2]]) {
-      const url = p.session.getView().skins.u1;
+      const { url, rig: received } = p.session.getView().skins.u1;
       expect(url).toMatch(/^blob:/);
+      expect(received).toBe(rig);
       const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
       expect([...bytes]).toEqual([137, 80, 78, 71, 1, 2, 3]);
     }
@@ -305,7 +311,7 @@ describe("7-player room over the fake transport", () => {
     await advance(200, players);
     expect(players[0].session.getView().skins.u1).toBeUndefined();
     expect(server.skins.size).toBe(0);
-    await players[2].session.setSkin(png);
+    await players[2].session.setSkin({ png, rig });
     await advance(200, players);
     expect(server.skins.size).toBe(1);
     await players[2].session.leave();

@@ -1,14 +1,11 @@
 import { useRef, useState, type ChangeEvent } from "react";
+import type { DrawingState } from "../skin/useDrawing";
+import { CharacterEditor } from "./CharacterEditor";
 import { validateDrawingFile } from "./drawingValidation";
 
 interface DrawingUploadProps {
-  drawingUrl: string | null;
-  /** Receives a decoded, validated object URL; the owner revokes the previous one. */
-  onDrawing: (url: string) => void;
-  /** Whether the drawing is worn as the runner skin. */
-  skinOn: boolean;
-  onSkinOn: (on: boolean) => void;
-  /** Label for the skin toggle; differs between SOLO (local) and ONLINE (shared). */
+  drawing: DrawingState;
+  /** Label for the "race as my drawing" toggle; differs between SOLO (local) and ONLINE (shared). */
   skinLabel: string;
   skinNote?: string | null;
 }
@@ -24,7 +21,10 @@ async function decodes(url: string): Promise<boolean> {
   }
 }
 
-export function DrawingUpload({ drawingUrl, onDrawing, skinOn, onSkinOn, skinLabel, skinNote }: DrawingUploadProps) {
+export function DrawingUpload({ drawing, skinLabel, skinNote }: DrawingUploadProps) {
+  const drawingUrl = drawing.url;
+  const onDrawing = drawing.setUrl;
+  const { skinOn, setSkinOn: onSkinOn, character } = drawing;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -56,11 +56,12 @@ export function DrawingUpload({ drawingUrl, onDrawing, skinOn, onSkinOn, skinLab
 
   return (
     <section className="card upload">
-      <h2>Drawing &amp; skin</h2>
-      <p className="notice">3D conversion is not connected in this prototype.</p>
+      <h2>Your drawing runner</h2>
       <p className="hint">
-        Your PNG/JPG (max 5MB) appears on the finish banner and, as a skin, on your runner&apos;s chest and back.
+        Draw a character (a stick figure works) with a dark pen on plain paper and upload a photo (PNG/JPG, max 5MB). We
+        cut it out, puff it up into a simple 3D shape and make it run. It also appears on the finish banner.
       </p>
+      <p className="notice">AI 3D model conversion is not connected in this prototype; the shape is an inflated cut-out.</p>
       <input
         ref={input}
         type="file"
@@ -72,13 +73,23 @@ export function DrawingUpload({ drawingUrl, onDrawing, skinOn, onSkinOn, skinLab
       <button type="button" className="secondary" onClick={() => input.current?.click()} disabled={busy}>
         {busy ? "Checking image…" : drawingUrl ? "Replace drawing" : "Upload drawing"}
       </button>
+      {drawing.processing && (
+        <p className="hint" role="status">
+          Cutting out your drawing…
+        </p>
+      )}
+      {drawing.error && (
+        <p className="error" role="alert">
+          {drawing.error}
+        </p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
       <label className="check">
-        <input type="checkbox" checked={skinOn} onChange={(e) => onSkinOn(e.target.checked)} disabled={!drawingUrl} />
+        <input type="checkbox" checked={skinOn} onChange={(e) => onSkinOn(e.target.checked)} disabled={!character} />
         <span>{skinLabel}</span>
       </label>
       {skinNote && (
@@ -86,11 +97,28 @@ export function DrawingUpload({ drawingUrl, onDrawing, skinOn, onSkinOn, skinLab
           {skinNote}
         </p>
       )}
-      {drawingUrl && (
-        <figure className="preview">
-          <img src={drawingUrl} alt="Uploaded drawing preview" />
-          <figcaption>A flat 2D image on the banner{skinOn ? " and your runner" : ""}</figcaption>
+      {character && (
+        <figure className="preview cutout">
+          <img src={character.url} alt="Your cut-out runner" />
+          <figcaption data-testid="character-status">
+            {skinOn ? "Racing as your drawing" : "Saved, but racing as the robot"}
+          </figcaption>
         </figure>
+      )}
+      {drawing.draft && !drawing.editing && (
+        <button type="button" className="link" onClick={drawing.openEditor}>
+          {character ? "Edit joints" : "Set up joints"}
+        </button>
+      )}
+      {drawing.editing && drawing.draft && drawing.editorJoints && (
+        <CharacterEditor
+          key={drawing.draft.url}
+          draft={drawing.draft}
+          initialJoints={drawing.editorJoints}
+          initialFlip={drawing.editorFlip}
+          onConfirm={drawing.confirm}
+          onCancel={drawing.closeEditor}
+        />
       )}
     </section>
   );

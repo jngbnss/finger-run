@@ -54,15 +54,20 @@ The E2E test "ONLINE without Supabase settings" expects a build without `.env.lo
 
 A race ends at 500m (FINISHED) or after 180 seconds (DNF). Top speed is 9 m/s, so a perfect run takes about 56 seconds. DNF runs are never saved, and bests from the old 100m version are ignored.
 
-### Skins (your drawing on your runner)
+### Your drawing runs (Animated Drawings style)
 
-Upload a PNG/JPG in **Drawing & skin**. It is cropped to a 256px square and shown as a patch on your robot's chest and back (it moves with the run animation), plus on the finish banner. 3D conversion is not connected.
+Draw a character (a stick figure is fine) with a dark pen on plain paper, take a photo and upload it in **Your drawing runner**.
 
-- **SOLO:** the skin stays on your device.
-- **ONLINE:** with "Wear it as my skin and share it with this room" on (default), the 256px PNG is uploaded to the private Supabase Storage bucket `skins` at `{room_id}/{user_id}.png`. Only members of that room can read it, only you can write or delete it, and the app deletes it when you leave or untick the box. Presence carries only a version token; images never travel over Realtime. The lobby shows each player's skin as a thumbnail.
-- Setup: run `supabase/migrations/20261007010000_finger_run_skins.sql` in the SQL Editor (after the rooms migration). Without it, racing still works and the UI says the skin could not be shared.
-- Files from players who closed the tab without leaving stay in Storage until removed (each at most 256 KB).
+1. **Cut out:** the paper colour is detected from the border and flood-filled away; the largest remaining shape is your character (enclosed white areas such as a face stay). Result: a transparent PNG, at most 384px.
+2. **Joints:** 15 stick-figure joints (head, neck, hips, shoulders, elbows, hands, hip joints, knees, feet) are guessed from the silhouette. In the editor you drag them into place (or select one and use the arrow keys), optionally **FLIP** the drawing, then press **USE THIS RUNNER**.
+3. **3D:** the cut-out becomes a grid mesh whose front and back are pushed out by the distance to the outline, so the body and limbs get rounded, plush-like volume ("inflation", as in Monster Mash). Every vertex is skinned to its two nearest bones.
+4. **Run:** a run cycle swings legs and arms in opposition, folds the knees and bobs the hips, at the speed set by your power. The figure turns its drawn side to the chase camera. Without a drawing (or with the box unticked) you race as the robot.
 
+AI 3D model conversion (TripoSR / UniRig) is not connected; the shape is an inflated cut-out, built entirely in the browser.
+
+- **SOLO:** the drawing stays on your device.
+- **ONLINE:** with "Race as my drawing and share it with this room" on (default), the cut-out PNG is uploaded to the private Supabase Storage bucket `skins` at `{room_id}/{user_id}.png`; the joints (about 200 characters) travel in your Presence state. Only members of that room can read the file, only you can write or delete it, and it is deleted when you leave or untick the box. Images never travel over Realtime. The lobby shows each player's cut-out as a thumbnail, and every device builds the same 3D runner from the PNG and the joints.
+- Setup: run `supabase/migrations/20261007010000_finger_run_skins.sql` in the SQL Editor (after the rooms migration). Without it, racing still works and others see your robot.
 ### Camera privacy
 
 Video frames and hand landmarks never leave the browser. Only the MediaPipe runtime (jsDelivr) and the hand model (Google storage) are downloaded. Online messages carry only power numbers, distances, and times.

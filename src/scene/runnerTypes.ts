@@ -7,8 +7,6 @@ export interface RunnerVisualProps {
   ghost?: boolean;
   /** Body colour; lane colour in online races. */
   tint?: string;
-  /** Player drawing worn on the chest and back. */
-  skinUrl?: string | null;
 }
 
 export const PLAYER_COLOR = "#ff7a1a";

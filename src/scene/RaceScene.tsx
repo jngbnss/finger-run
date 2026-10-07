@@ -1,4 +1,5 @@
 import { Canvas, useFrame } from "@react-three/fiber";
+import type { CharacterSkin } from "./DrawnRunner";
 import { FinishFlag } from "./FinishFlag";
 import { RunnerSlot, type RunnerStatus } from "./RunnerSlot";
 import { SpeedLines, Track, laneZ, trackHalfWidth } from "./Track";
@@ -15,7 +16,8 @@ export interface SceneRunner {
   label?: string;
   isLocal?: boolean;
   ghost?: boolean;
-  skinUrl?: string | null;
+  /** Run as this drawn character instead of the robot. */
+  character?: CharacterSkin | null;
 }
 
 interface RaceSceneProps {
@@ -90,7 +92,7 @@ export function RaceScene({
           tint={r.tint}
           label={r.label}
           isLocal={r.isLocal}
-          skinUrl={r.skinUrl}
+          character={r.character}
           onStatus={r.ghost || (r.isLocal === false) ? undefined : onRunnerStatus}
         />
       ))}

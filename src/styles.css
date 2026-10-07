@@ -800,3 +800,45 @@ button.link {
   object-fit: cover;
   background: #fff;
 }
+
+/* Character editor */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(3, 5, 9, 0.8);
+}
+.modal {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.modal .buttons + .buttons {
+  margin-top: 8px;
+}
+.editor-stage {
+  display: grid;
+  place-items: center;
+  margin: 8px 0 12px;
+  border-radius: 8px;
+  background: repeating-conic-gradient(#1c2332 0% 25%, #121722 0% 50%) 0 0 / 20px 20px;
+}
+.editor-stage svg {
+  width: 100%;
+  max-height: 55vh;
+  touch-action: none;
+  user-select: none;
+}
+.editor-stage .joint {
+  cursor: grab;
+}
+.editor-stage .joint:focus-visible {
+  outline: none;
+  stroke: #ffffff;
+}
+.preview.cutout img {
+  background: repeating-conic-gradient(#e8edf7 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+}

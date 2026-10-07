@@ -16,6 +16,7 @@ import { ResultsBoard, Standings } from "./ui/Standings";
 import { useReducedMotion } from "./ui/useReducedMotion";
 import type { DrawingState } from "./skin/useDrawing";
 import { DrawingUpload } from "./ui/DrawingUpload";
+import type { CharacterSkin } from "./scene/DrawnRunner";
 
 const ENTRY_ERRORS: Partial<Record<ErrorCode, string>> = {
   ROOM_NOT_FOUND: "No room with that code. Check the code or ask the host for the link.",
@@ -53,9 +54,9 @@ interface OnlineGameProps {
 
 const SKIN_NOTES: Record<SessionView["skinStatus"], string | null> = {
   off: null,
-  uploading: "Sharing your skin with the room…",
-  shared: "Your skin is shared with this room only and deleted when you leave.",
-  error: "Could not share your skin (storage not set up?). Others see the plain robot.",
+  uploading: "Sharing your drawing with the room…",
+  shared: "Your drawing is shared with this room only and deleted when you leave.",
+  error: "Could not share your drawing (storage not set up?). Others see the robot.",
 };
 
 export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
@@ -126,11 +127,11 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
   sessionRef.current = session;
   useEffect(() => () => void sessionRef.current?.leave().catch(() => {}), []);
 
-  // Share the skin while the toggle is on; stop sharing when it is turned off.
-  const sharedBlob = drawing.skinOn ? (drawing.skin?.blob ?? null) : null;
+  // Share the drawn runner while the toggle is on; stop sharing when it is turned off.
+  const shared = drawing.skinOn ? drawing.character : null;
   useEffect(() => {
-    if (session) void session.setSkin(sharedBlob);
-  }, [session, sharedBlob]);
+    if (session) void session.setSkin(shared ? { png: shared.blob, rig: shared.rig } : null);
+  }, [session, shared]);
 
   useEffect(() => {
     session?.setCameraReady(input.mode === "CAMERA" && input.hand.view.status === "RUNNING");
@@ -161,16 +162,14 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
   );
   const drawingPanel = (
     <DrawingUpload
-      drawingUrl={drawingUrl}
-      onDrawing={drawing.setUrl}
-      skinOn={drawing.skinOn}
-      onSkinOn={drawing.setSkinOn}
-      skinLabel="Wear it as my skin and share it with this room"
+      drawing={drawing}
+      skinLabel="Race as my drawing and share it with this room"
       skinNote={view ? SKIN_NOTES[view.skinStatus] : null}
     />
   );
-  const mySkinUrl = drawing.skinOn ? (drawing.skin?.url ?? null) : null;
-  const skinOf = (userId: string, isMe: boolean) => (isMe ? mySkinUrl : (view?.skins[userId] ?? null));
+  const characterOf = (userId: string, isMe: boolean): CharacterSkin | null =>
+    isMe ? shared : (view?.skins[userId] ?? null);
+  const skinOf = (userId: string, isMe: boolean) => characterOf(userId, isMe)?.url ?? null;
 
   if (!session || !view) {
     return (
@@ -222,7 +221,7 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
           tint: laneColor(r.lane),
           label: `${r.rank}. ${r.nickname}`,
           isLocal: r.isMe,
-          skinUrl: skinOf(r.userId, r.isMe),
+          character: characterOf(r.userId, r.isMe),
         };
       })
     : view.players.map((p) => ({
@@ -236,7 +235,7 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
         tint: laneColor(p.lane),
         label: p.nickname,
         isLocal: p.isMe,
-        skinUrl: skinOf(p.userId, p.isMe),
+        character: characterOf(p.userId, p.isMe),
       }));
 
   const showNotice = view.notice && !(view.stale && view.notice.code === "CONNECTION_LOST");

@@ -25,6 +25,7 @@ import {
   type SnapshotMessage,
   type SnapshotPlayer,
 } from "./protocol";
+import { decodeRig } from "../character/skeleton";
 import { SnapshotBuffer } from "./snapshotBuffer";
 import type { ChannelStatus, RealtimeTransport, RoomBackend, RoomChannel } from "./transport";
 
@@ -80,8 +81,8 @@ export interface SessionView {
   connection: ChannelStatus;
   notice: SessionNotice | null;
   results: RacePlayerView[] | null;
-  /** Other players' skins as object URLs, by user id. */
-  skins: Record<string, string>;
+  /** Other players' drawn runners (cut-out object URL + joints), by user id. */
+  skins: Record<string, { url: string; rig: string }>;
   /** State of sharing my own skin. */
   skinStatus: "off" | "uploading" | "shared" | "error";
 }
@@ -131,7 +132,8 @@ export class RoomSession {
   private skinToken: string | null = null;
   private skinStatus: SessionView["skinStatus"] = "off";
   private skinJob: Promise<void> = Promise.resolve();
-  private remoteSkins = new Map<string, { token: string; url: string | null }>();
+  private skinRig: string | null = null;
+  private remoteSkins = new Map<string, { token: string; url: string | null; rig: string }>();
 
   static async create(deps: SessionDeps, nickname: string): Promise<RoomSession> {
     const me = await deps.backend.signIn();
@@ -221,7 +223,8 @@ export class RoomSession {
    * Shares (or stops sharing) my skin with this room. The PNG goes to room-private
    * storage; presence only carries a version token so others know to fetch it.
    */
-  setSkin(png: Blob | null): Promise<void> {
+  setSkin(skin: { png: Blob; rig: string } | null): Promise<void> {
+    const png = skin?.png ?? null;
     this.skinJob = this.skinJob.then(async () => {
       if (this.phase === "LEFT") return;
       try {
@@ -230,9 +233,11 @@ export class RoomSession {
           this.notify();
           await this.deps.backend.uploadSkin(this.room.id, png);
           this.skinToken = `${this.deps.now()}-${png.size}`;
+          this.skinRig = skin!.rig;
           this.skinStatus = "shared";
         } else if (this.skinToken !== null || this.skinStatus === "error") {
           this.skinToken = null;
+          this.skinRig = null;
           this.skinStatus = "off";
           await this.deps.backend.deleteSkin(this.room.id);
         }
@@ -409,7 +414,9 @@ export class RoomSession {
       notice: this.notice,
       results: this.finalSnapshot ? decorate(this.finalSnapshot.players) : null,
       skins: Object.fromEntries(
-        [...this.remoteSkins].filter(([, s]) => s.url !== null).map(([id, s]) => [id, s.url as string]),
+        [...this.remoteSkins]
+          .filter(([, s]) => s.url !== null)
+          .map(([id, s]) => [id, { url: s.url as string, rig: s.rig }]),
       ),
       skinStatus: this.skinStatus,
     };
@@ -457,6 +464,7 @@ export class RoomSession {
       ready: mine?.ready ?? false,
       cameraReady: this.cameraReady,
       skin: this.skinToken,
+      rig: this.skinRig,
     });
   }
 
@@ -546,7 +554,9 @@ export class RoomSession {
   /** Fetches skins whose token changed; drops skins of players who stopped sharing. */
   private syncRemoteSkins(states: PresenceState[]) {
     const wanted = new Map(
-      states.filter((s) => s.userId !== this.me && typeof s.skin === "string").map((s) => [s.userId, s.skin as string]),
+      states
+        .filter((s) => s.userId !== this.me && typeof s.skin === "string" && decodeRig(s.rig) !== null)
+        .map((s) => [s.userId, { token: s.skin as string, rig: s.rig as string }]),
     );
     for (const [userId, skin] of this.remoteSkins) {
       if (wanted.has(userId)) continue;
@@ -554,10 +564,10 @@ export class RoomSession {
       if (skin.url) URL.revokeObjectURL(skin.url);
       this.remoteSkins.delete(userId);
     }
-    for (const [userId, token] of wanted) {
+    for (const [userId, { token, rig }] of wanted) {
       if (this.remoteSkins.get(userId)?.token === token) continue;
       const previous = this.remoteSkins.get(userId);
-      this.remoteSkins.set(userId, { token, url: previous?.url ?? null });
+      this.remoteSkins.set(userId, { token, url: previous?.url ?? null, rig });
       this.deps.backend
         .downloadSkin(this.room.id, userId)
         .then((blob) => {

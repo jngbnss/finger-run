@@ -1,5 +1,5 @@
 /** Bump when message shapes change; peers on another version get VERSION_MISMATCH. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const MAX_PLAYERS = 7;
 export const MIN_PLAYERS = 2;
@@ -133,8 +133,10 @@ export interface PresenceState {
   lane: number;
   ready: boolean;
   cameraReady: boolean;
-  /** Changes whenever the player uploads a new skin; null when not sharing one. */
+  /** Changes whenever the player uploads a new drawn runner; null when not sharing one. */
   skin: string | null;
+  /** The drawn runner's joints (see encodeRig); the cut-out itself is in room storage. */
+  rig: string | null;
 }
 
 export const NICKNAME_MAX = 16;

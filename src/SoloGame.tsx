@@ -99,7 +99,7 @@ export function SoloGame({ drawing }: { drawing: DrawingState }) {
       animationScale: race.animationScale,
       running: race.phase === "RUNNING",
       tint: PLAYER_COLOR,
-      skinUrl: drawing.skinOn ? drawing.skin?.url : null,
+      character: drawing.skinOn ? drawing.character : null,
     },
   ];
   if (best) runners.push(ghostRunner(best, raceStarted ? race.elapsedS * 1000 : 0, race.phase === "RUNNING"));
@@ -159,13 +159,7 @@ export function SoloGame({ drawing }: { drawing: DrawingState }) {
           slider={input.slider}
           onSlider={input.setSlider}
         />
-        <DrawingUpload
-          drawingUrl={drawingUrl}
-          onDrawing={drawing.setUrl}
-          skinOn={drawing.skinOn}
-          onSkinOn={drawing.setSkinOn}
-          skinLabel="Wear it on my runner (stays on this device)"
-        />
+        <DrawingUpload drawing={drawing} skinLabel="Race as my drawing (stays on this device)" />
       </aside>
     </main>
   );
