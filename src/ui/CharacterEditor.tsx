@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { CharacterDraft } from "../character/makeCharacter";
-import { BONES, JOINTS, JOINT_LABELS, type JointName, type Joints } from "../character/skeleton";
+import { BONES, JOINTS, JOINT_LABELS, jointSide, type JointName, type Joints } from "../character/skeleton";
 
 interface CharacterEditorProps {
   draft: CharacterDraft;
@@ -10,8 +10,8 @@ interface CharacterEditorProps {
   onCancel: () => void;
 }
 
-const SIDE_COLOR: Record<string, string> = { l: "#5ee7ff", r: "#ff7a1a", c: "#ffe14d" };
-const sideOf = (j: JointName) => (j.startsWith("l") ? "l" : j.startsWith("r") ? "r" : "c");
+const SIDE_COLOR = { pictureLeft: "#5ee7ff", pictureRight: "#ff7a1a", center: "#ffe14d" } as const;
+const sideOf = jointSide;
 
 /**
  * Shows the cut-out character with its stick-figure skeleton. Players drag each dot
@@ -113,7 +113,7 @@ export function CharacterEditor({ draft, initialJoints, initialFlip, onConfirm, 
                 strokeWidth={r * 0.25}
                 tabIndex={0}
                 role="slider"
-                aria-label={`${JOINT_LABELS[j]}${sideOf(j) === "c" ? "" : sideOf(j) === "l" ? " (left side of picture)" : " (right side of picture)"}`}
+                aria-label={JOINT_LABELS[j]}
                 aria-valuetext={`x ${Math.round(joints[j].x)}, y ${Math.round(joints[j].y)}`}
                 className="joint"
                 data-joint={j}
@@ -146,16 +146,21 @@ export function CharacterEditor({ draft, initialJoints, initialFlip, onConfirm, 
         </div>
         <ul className="joint-legend" aria-label="Dot colours">
           <li>
-            <span style={{ background: SIDE_COLOR.c }} /> Middle: head, neck, hips
+            <span style={{ background: SIDE_COLOR.center }} /> Middle: head, neck, hips
           </li>
           <li>
-            <span style={{ background: SIDE_COLOR.l }} /> Arm &amp; leg on the picture&apos;s left
+            <span style={{ background: SIDE_COLOR.pictureLeft }} /> Character&apos;s <strong>right</strong> arm &amp; leg
+            (left in the picture)
           </li>
           <li>
-            <span style={{ background: SIDE_COLOR.r }} /> Arm &amp; leg on the picture&apos;s right
+            <span style={{ background: SIDE_COLOR.pictureRight }} /> Character&apos;s <strong>left</strong> arm &amp; leg
+            (right in the picture)
           </li>
         </ul>
-        <p className="hint">Each arm: shoulder, elbow, hand. Each leg: hip, knee, foot. Press a dot to see its name.</p>
+        <p className="hint">
+          Each arm: shoulder, elbow, hand. Each leg: hip, knee, foot. Press a dot to see its name (e.g. &quot;Right
+          hand&quot;). Left and right are the character&apos;s own, as if it faces you.
+        </p>
         <div className="buttons">
           <button type="button" onClick={() => setFlip((f) => !f)} aria-pressed={flip}>
             FLIP

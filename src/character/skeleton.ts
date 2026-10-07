@@ -56,22 +56,32 @@ export const BONES: BoneDef[] = [
   { name: "rShin", from: "rKnee", to: "rFoot", parent: "rThigh" },
 ];
 
+/** Which side of the picture a joint is on. "root" is the hip centre, not a right-side joint. */
+export function jointSide(j: JointName): "center" | "pictureLeft" | "pictureRight" {
+  if (j === "head" || j === "neck" || j === "root") return "center";
+  return j.startsWith("l") ? "pictureLeft" : "pictureRight";
+}
+
+/**
+ * Names from the character's point of view, assuming the drawing faces the viewer:
+ * the limb on the picture's left is the character's right.
+ */
 export const JOINT_LABELS: Record<JointName, string> = {
-  head: "Head",
+  head: "Head (top)",
   neck: "Neck",
-  root: "Hips",
-  lShoulder: "Shoulder",
-  lElbow: "Elbow",
-  lHand: "Hand",
-  rShoulder: "Shoulder",
-  rElbow: "Elbow",
-  rHand: "Hand",
-  lHip: "Hip",
-  lKnee: "Knee",
-  lFoot: "Foot",
-  rHip: "Hip",
-  rKnee: "Knee",
-  rFoot: "Foot",
+  root: "Hips (centre)",
+  lShoulder: "Right shoulder",
+  lElbow: "Right elbow",
+  lHand: "Right hand",
+  rShoulder: "Left shoulder",
+  rElbow: "Left elbow",
+  rHand: "Left hand",
+  lHip: "Right hip",
+  lKnee: "Right knee",
+  lFoot: "Right foot",
+  rHip: "Left hip",
+  rKnee: "Left knee",
+  rFoot: "Left foot",
 };
 
 /** Nearest character pixel to a point (searches outward up to `radius`). */
@@ -228,6 +238,7 @@ const ADJACENT = new Set(
 );
 
 const HEAD = BONES.findIndex((b) => b.name === "head");
+const SPINE = BONES.findIndex((b) => b.name === "spine");
 
 /**
  * Linear-blend-skinning weights for one point.
@@ -236,17 +247,30 @@ const HEAD = BONES.findIndex((b) => b.name === "head");
  * - Elsewhere: the nearest bone, blended with its nearest *connected* bone by inverse
  *   squared distance, so joints bend smoothly but a cheek never follows an arm.
  */
-export function skinWeights(p: Point, joints: Joints, softness: number): { index: [number, number]; weight: [number, number] } {
+export function skinWeights(
+  p: Point,
+  joints: Joints,
+  softness: number,
+  /** Pixels of the torso body (between shoulders and hips); they follow only the spine. */
+  isTorso: (p: Point) => boolean = () => false,
+): { index: [number, number]; weight: [number, number] } {
   const dist = BONES.map((b) => distanceToSegment(p, joints[b.from], joints[b.to]));
   const aboveNeck = p.y <= joints.neck.y;
-  // Above the neck only the head and bones that themselves reach above the neck (raised arms) compete.
-  const reachesAboveNeck = (i: number) => Math.min(joints[BONES[i].from].y, joints[BONES[i].to].y) <= joints.neck.y;
-  const allowed = (i: number) => !aboveNeck || i === HEAD || reachesAboveNeck(i);
+  // Above the neck only the head competes, plus an arm whose hand is raised above the top of the head.
+  const raisedArm = (i: number) => {
+    const name = BONES[i].name;
+    if (!/arm/i.test(name)) return false;
+    const hand = name.startsWith("l") ? joints.lHand : joints.rHand;
+    return hand.y < joints.head.y;
+  };
+  const allowed = (i: number) => !aboveNeck || i === HEAD || raisedArm(i);
   let i1 = HEAD;
   dist.forEach((d, i) => {
     if (allowed(i) && d < dist[i1]) i1 = i;
   });
   if (i1 === HEAD && aboveNeck) return { index: [HEAD, HEAD], weight: [1, 0] };
+  // Arms or clothes drawn over the body stay with the body instead of tearing it.
+  if (!aboveNeck && isTorso(p) && dist[i1] > softness) return { index: [SPINE, SPINE], weight: [1, 0] };
 
   let i2 = -1;
   dist.forEach((d, i) => {

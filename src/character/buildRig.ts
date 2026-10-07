@@ -1,7 +1,7 @@
 import {
   Bone,
   BufferGeometry,
-  DoubleSide,
+  FrontSide,
   Float32BufferAttribute,
   MeshStandardMaterial,
   Skeleton,
@@ -24,18 +24,81 @@ import { BONES, skinWeights, type Joints, type Point } from "./skeleton";
 
 export const CHARACTER_HEIGHT_M = 1.8;
 /** Thickest a body part gets (half-depth, metres). */
-const MAX_HALF_DEPTH_M = 0.16;
+const MAX_HALF_DEPTH_M = 0.13;
 const GRID_ROWS = 64;
+
+/** How freely each limb may swing, 0.25 (drawn against the body) to 1 (sticks out). */
+export interface LimbFreedom {
+  lArm: number;
+  rArm: number;
+  lLeg: number;
+  rLeg: number;
+}
 
 export interface CharacterRig {
   mesh: SkinnedMesh;
   bones: Record<string, Bone>;
   root: Bone;
   rootRest: { x: number; y: number };
+  freedom: LimbFreedom;
   dispose(): void;
 }
 
-export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = false): CharacterRig {
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Torso band (neck to hips) and its typical half-width, from the silhouette. Anything
+ * inside it follows the spine only, so arms or clothes drawn over the body never tear it.
+ */
+export function torsoShape(mask: Mask, joints: Joints) {
+  const top = joints.neck.y;
+  const bottom = Math.max(joints.root.y, joints.lHip.y, joints.rHip.y);
+  const spineX = (y: number) => {
+    const t = bottom === top ? 0 : clamp((y - top) / (joints.root.y - top || 1), 0, 1);
+    return joints.neck.x + (joints.root.x - joints.neck.x) * t;
+  };
+  const widths: number[] = [];
+  for (let y = Math.ceil(top); y <= bottom; y++) {
+    const yy = Math.round(y);
+    if (yy < 0 || yy >= mask.height) continue;
+    let x0 = Math.round(spineX(y));
+    let x1 = x0;
+    const at = (x: number) => x >= 0 && x < mask.width && mask.data[yy * mask.width + x] === 1;
+    if (!at(x0)) continue;
+    while (at(x0 - 1)) x0--;
+    while (at(x1 + 1)) x1++;
+    widths.push(x1 - x0 + 1);
+  }
+  widths.sort((a, b) => a - b);
+  const halfWidth = (widths[widths.length >> 1] ?? 0) / 2 + 1;
+  return {
+    spineX,
+    halfWidth,
+    contains: (p: Point) => p.y > top && p.y < bottom && Math.abs(p.x - spineX(p.y)) <= halfWidth,
+  };
+}
+
+/**
+ * Arms far from the body and long legs swing fully; arms drawn against the body or
+ * short legs under a dress swing a little, so chunky characters do not tear.
+ */
+export function limbFreedom(joints: Joints, heightPx: number, torso: ReturnType<typeof torsoShape>): LimbFreedom {
+  const arm = (hand: Point) => clamp((Math.abs(hand.x - torso.spineX(hand.y)) - torso.halfWidth) / (0.15 * heightPx), 0.25, 1);
+  const len = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  const leg = (hip: Point, knee: Point, foot: Point) => clamp(((len(hip, knee) + len(knee, foot)) / heightPx - 0.1) / 0.25, 0.25, 1);
+  return {
+    lArm: arm(joints.lHand),
+    rArm: arm(joints.rHand),
+    lLeg: leg(joints.lHip, joints.lKnee, joints.lFoot),
+    rLeg: leg(joints.rHip, joints.rKnee, joints.rFoot),
+  };
+}
+
+/**
+ * @param texture front of the drawing
+ * @param backTexture painted back view (see makeBackView); defaults to the front
+ */
+export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = false, backTexture?: Texture): CharacterRig {
   const box = maskBounds(mask);
   if (!box) throw new Error("Empty character");
   const heightPx = box.y1 - box.y0 + 1;
@@ -63,6 +126,7 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
   const skinIndex = new Uint16Array(vertexCount * 2 * 4);
   const skinWeight = new Float32Array(vertexCount * 2 * 4);
   const softness = heightPx * 0.015;
+  const torso = torsoShape(mask, joints);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -70,7 +134,7 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
       const py = gy0 + r * step;
       const m = toModel({ x: px, y: py });
       const z = depthAt(px, py);
-      const w = skinWeights({ x: px, y: py }, joints, softness);
+      const w = skinWeights({ x: px, y: py }, joints, softness, torso.contains);
       for (let layer = 0; layer < 2; layer++) {
         const v = layer * vertexCount + r * cols + c;
         positions.set([m.x, m.y, layer === 0 ? z : -z], v * 3);
@@ -90,7 +154,8 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
     for (let y = y0 - 1; y <= y0 + step; y++) for (let x = x0 - 1; x <= x0 + step; x++) if (inside(x, y)) return true;
     return false;
   };
-  const indices: number[] = [];
+  const frontIndices: number[] = [];
+  const backIndices: number[] = [];
   for (let r = 0; r < rows - 1; r++) {
     for (let c = 0; c < cols - 1; c++) {
       if (!keepCell(c, r)) continue;
@@ -100,8 +165,8 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
       const e = d + 1;
       // Front faces +Z; back layer reversed so it faces -Z.
       const front = sx > 0 ? [a, d, b, b, d, e] : [a, b, d, b, e, d];
-      indices.push(...front);
-      indices.push(...front.map((i) => i + vertexCount).reverse());
+      frontIndices.push(...front);
+      backIndices.push(...front.map((i) => i + vertexCount).reverse());
     }
   }
 
@@ -110,7 +175,9 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
   geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
   geometry.setAttribute("skinIndex", new Uint16BufferAttribute(skinIndex, 4));
   geometry.setAttribute("skinWeight", new Float32BufferAttribute(skinWeight, 4));
-  geometry.setIndex(indices);
+  geometry.setIndex([...frontIndices, ...backIndices]);
+  geometry.addGroup(0, frontIndices.length, 0);
+  geometry.addGroup(frontIndices.length, backIndices.length, 1);
   geometry.computeVertexNormals();
 
   // Bones sit on their pivot joints; children are positioned relative to parents.
@@ -132,17 +199,19 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
 
   // Self-lit by the drawing itself so its colours stay close to the paper original;
   // the lighting still shades the puffed-up volume.
-  const material = new MeshStandardMaterial({
-    map: texture,
-    emissiveMap: texture,
-    emissive: 0xffffff,
-    emissiveIntensity: 0.55,
-    alphaTest: 0.5,
-    side: DoubleSide,
-    roughness: 0.8,
-    metalness: 0,
-  });
-  const mesh = new SkinnedMesh(geometry, material);
+  const makeMaterial = (map: Texture) =>
+    new MeshStandardMaterial({
+      map,
+      emissiveMap: map,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.55,
+      alphaTest: 0.5,
+      side: FrontSide,
+      roughness: 0.8,
+      metalness: 0,
+    });
+  const materials = [makeMaterial(texture), makeMaterial(backTexture ?? texture)];
+  const mesh = new SkinnedMesh(geometry, materials);
   mesh.add(root);
   mesh.castShadow = true;
   mesh.frustumCulled = false;
@@ -154,9 +223,10 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
     bones,
     root,
     rootRest,
+    freedom: limbFreedom(joints, heightPx, torso),
     dispose() {
       geometry.dispose();
-      material.dispose();
+      materials.forEach((m) => m.dispose());
     },
   };
 }

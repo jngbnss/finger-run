@@ -44,11 +44,12 @@ export function distanceToEdge(mask: Mask): Float32Array {
 }
 
 /**
- * Half-thickness for a point `dist` pixels inside the outline. A circular profile
- * (sqrt) gives round, plush-like limbs; `maxDist` caps how fat the torso gets.
+ * Half-thickness for a point `dist` pixels inside the outline. A parabolic profile
+ * rounds the body like a plush toy while keeping the rim from turning into a steep
+ * wall (which stretches the outline into streaks); `maxDist` caps how fat it gets.
  */
 export function inflateDepth(dist: number, maxDist: number, maxDepth: number): number {
   if (dist <= 0 || maxDist <= 0) return 0;
   const t = Math.min(1, dist / maxDist);
-  return maxDepth * Math.sqrt(t * (2 - t));
+  return maxDepth * t * (2 - t);
 }

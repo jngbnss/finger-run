@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { SRGBColorSpace, Texture } from "three";
+import { CanvasTexture, SRGBColorSpace, Texture } from "three";
+import { makeBackView } from "../character/backView";
 import { buildRig, type CharacterRig } from "../character/buildRig";
 import { loadCutout } from "../character/makeCharacter";
 import { runPose } from "../character/runPose";
@@ -47,17 +48,18 @@ export function DrawnRunner({ character, animationScale, running, onError }: Dra
     loadCutout(character.url)
       .then(({ image, mask }) => {
         if (cancelled) return;
+        const joints = denormalizeJoints(decoded.joints, mask.width, mask.height);
         const texture = new Texture(image);
         texture.colorSpace = SRGBColorSpace;
         texture.needsUpdate = true;
-        built = buildRig(mask, denormalizeJoints(decoded.joints, mask.width, mask.height), texture, decoded.flip);
+        built = buildRig(mask, joints, texture, decoded.flip, backTexture(image, mask, joints.neck.y));
         setRig(built);
       })
       .catch((error) => !cancelled && errorRef.current(error instanceof Error ? error.message : String(error)));
     return () => {
       cancelled = true;
       if (built) {
-        (built.mesh.material as { map?: Texture }).map?.dispose();
+        for (const m of built.mesh.material as Array<{ map?: Texture | null }>) m.map?.dispose();
         built.dispose();
       }
       setRig(null);
@@ -72,7 +74,7 @@ export function DrawnRunner({ character, animationScale, running, onError }: Dra
     const target = scale > 0 ? Math.min(1, 0.45 + scale * 0.25) : 0;
     amount.current += (target - amount.current) * Math.min(1, dt * 8);
 
-    const pose = runPose(phase.current, amount.current);
+    const pose = runPose(phase.current, amount.current, rig.freedom);
     for (const [name, angle] of Object.entries(pose.pitch)) {
       const bone = rig.bones[name];
       if (bone) bone.rotation.x = angle;
@@ -80,6 +82,21 @@ export function DrawnRunner({ character, animationScale, running, onError }: Dra
     rig.root.position.y = rig.rootRest.y + pose.bob;
   });
 
-  // The rig's front is +Z; turn it to face the race direction (+X).
+  // The rig's front is +Z; turn it to face the race direction (+X). The camera sees the painted back.
   return <group rotation={[0, Math.PI / 2, 0]}>{rig && <primitive object={rig.mesh} />}</group>;
+}
+
+/** The drawing's back side: same silhouette, face and inner lines painted over. */
+function backTexture(image: HTMLImageElement, mask: { width: number; height: number; data: Uint8Array }, neckY: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = mask.width;
+  canvas.height = mask.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(image, 0, 0);
+  const pixels = ctx.getImageData(0, 0, mask.width, mask.height);
+  pixels.data.set(makeBackView(pixels.data, mask, Math.round(neckY)));
+  ctx.putImageData(pixels, 0, 0);
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
 }
