@@ -5,6 +5,8 @@ export interface RunnerVisualProps {
   animationScale: number;
   running: boolean;
   ghost?: boolean;
+  /** Body colour; lane colour in online races. */
+  tint?: string;
 }
 
 export const PLAYER_COLOR = "#ff7a1a";

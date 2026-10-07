@@ -1,80 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  clearStoredBest,
-  completedRun,
-  loadBest,
-  saveBestIfBetter,
-} from "./game/ghost";
-import {
-  createRace,
-  overlayLabel,
-  resetRace,
-  setTargetPower,
-  startRace,
-  stepRace,
-} from "./game/raceEngine";
-import type { RaceSnapshot, StoredBest } from "./game/types";
-import { RaceScene } from "./scene/RaceScene";
-import type { RunnerStatus } from "./scene/RunnerSlot";
-import { SceneBoundary, hasWebGL } from "./scene/SceneBoundary";
-import { DrawingUpload } from "./ui/DrawingUpload";
-import { Hud, formatTime } from "./ui/Hud";
-import { PowerControl } from "./ui/PowerControl";
+import { OnlineGame } from "./OnlineGame";
+import { SoloGame } from "./SoloGame";
+import { normalizeRoomCode } from "./multiplayer/protocol";
 
-function safeLocalStorage(): Storage | null {
+type Mode = "SOLO" | "ONLINE";
+
+function roomFromUrl(): string | null {
   try {
-    return window.localStorage;
+    return normalizeRoomCode(new URL(location.href).searchParams.get("room") ?? "");
   } catch {
     return null;
   }
 }
 
-const storage = safeLocalStorage();
-const initialLoad = loadBest(storage);
-
 export function App() {
-  const [race, setRace] = useState<RaceSnapshot>(() => createRace());
-  const raceRef = useRef(race);
-  const [best, setBest] = useState<StoredBest | null>(initialLoad.best);
-  const bestRef = useRef(best);
-  const [lastImproved, setLastImproved] = useState(false);
-  const [notice, setNotice] = useState<string | null>(
-    initialLoad.corrupt ? "Saved best run was unreadable and has been ignored." : null,
-  );
-  const [webgl] = useState(hasWebGL);
-  const [sceneError, setSceneError] = useState<string | null>(null);
-  const [sceneKey, setSceneKey] = useState(0);
-  const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>({ kind: "loading" });
+  const [linkCode] = useState(roomFromUrl);
+  // A shared ?room= link goes straight to ONLINE; otherwise pick a mode first.
+  const [mode, setMode] = useState<Mode | null>(linkCode ? "ONLINE" : null);
   const [drawingUrl, setDrawingUrl] = useState<string | null>(null);
   const drawingRef = useRef<string | null>(null);
-
-  const apply = useCallback((update: (state: RaceSnapshot) => RaceSnapshot) => {
-    const prev = raceRef.current;
-    const next = update(prev);
-    if (next === prev) return;
-    raceRef.current = next;
-    setRace(next);
-    if (prev.phase === "RUNNING" && next.phase === "FINISHED") {
-      const result = saveBestIfBetter(storage, bestRef.current, completedRun(next));
-      bestRef.current = result.best;
-      setBest(result.best);
-      setLastImproved(result.improved);
-    }
-  }, []);
-
-  // Simulation loop lives outside the Canvas so HUD keeps running if WebGL fails.
-  useEffect(() => {
-    let frame = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      apply((state) => stepRace(state, dt));
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [apply]);
 
   useEffect(
     () => () => {
@@ -89,111 +33,40 @@ export function App() {
     setDrawingUrl(url);
   }, []);
 
-  const handleClearBest = useCallback(() => {
-    clearStoredBest(storage);
-    bestRef.current = null;
-    setBest(null);
-    setLastImproved(false);
-    setNotice(null);
-  }, []);
-
-  const handleContextLost = useCallback(() => {
-    setSceneError("The WebGL context was lost (GPU reset or too many 3D tabs).");
-  }, []);
-
-  const label = overlayLabel(race);
-
-  let result: string | null = null;
-  if (race.phase === "FINISHED" && race.finishTimeMs !== null) {
-    result = `FINISH! ${formatTime(race.finishTimeMs)}${lastImproved ? " — NEW BEST" : ""}`;
-  } else if (race.phase === "DNF") {
-    result = "DNF — 60 second limit reached. Run not saved.";
-  }
-
-  let viewport;
-  if (!webgl) {
-    viewport = (
-      <div className="scene-error">
-        <h2>WebGL is not available</h2>
-        <p>This browser or device cannot render 3D. The race still runs: use the HUD on the right.</p>
-      </div>
-    );
-  } else if (sceneError) {
-    viewport = (
-      <div className="scene-error">
-        <h2>3D view stopped</h2>
-        <p>{sceneError}</p>
-        <p>The race keeps running in the HUD.</p>
-        <button
-          type="button"
-          onClick={() => {
-            setSceneError(null);
-            setSceneKey((k) => k + 1);
-          }}
-        >
-          Retry 3D view
-        </button>
-      </div>
-    );
-  } else {
-    viewport = (
-      <SceneBoundary key={sceneKey} onError={setSceneError}>
-        <RaceScene
-          race={race}
-          best={best}
-          drawingUrl={drawingUrl}
-          onRunnerStatus={setRunnerStatus}
-          onContextLost={handleContextLost}
-        />
-      </SceneBoundary>
-    );
-  }
-
   return (
     <div className="app">
       <header>
-        <h1>FINGER RUN 3D</h1>
-        <p className="subtitle">POWER CONTROL PROTOTYPE</p>
-      </header>
-      <main>
-        <div className="viewport">
-          {viewport}
-          {label && (
-            <div key={label} className={`overlay-label${label === "GO!" ? " go" : ""}`}>
-              {label}
-            </div>
-          )}
-          {result && (
-            <div className={`result ${race.phase === "DNF" ? "dnf" : ""}`}>
-              {result}
-              <span>Press RESET to race again{best ? " against your ghost" : ""}.</span>
-            </div>
-          )}
-          <div className="toasts">
-            {runnerStatus.kind === "loading" && webgl && !sceneError && (
-              <div className="toast">Loading runner model…</div>
-            )}
-            {runnerStatus.kind === "fallback" && (
-              <div className="toast warn">
-                Using procedural runner: {runnerStatus.reason}
-              </div>
-            )}
-            {notice && <div className="toast warn">{notice}</div>}
-          </div>
+        <div className="title">
+          <h1>FINGER RUN 3D</h1>
+          <p className="subtitle">POWER CONTROL PROTOTYPE</p>
         </div>
-        <aside>
-          <Hud race={race} />
-          <PowerControl
-            race={race}
-            best={best}
-            onPower={(p) => apply((s) => setTargetPower(s, p))}
-            onStart={() => apply(startRace)}
-            onReset={() => apply(resetRace)}
-            onClearBest={handleClearBest}
-          />
-          <DrawingUpload drawingUrl={drawingUrl} onDrawing={handleDrawing} />
-        </aside>
-      </main>
+        {mode && (
+          <nav className="mode-tabs" aria-label="Game mode">
+            {(["SOLO", "ONLINE"] as const).map((m) => (
+              <button key={m} type="button" aria-pressed={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>
+                {m}
+              </button>
+            ))}
+          </nav>
+        )}
+      </header>
+      {mode === null && (
+        <main className="mode-select">
+          <h2>Choose a mode</h2>
+          <div className="mode-cards">
+            <button type="button" className="mode-card" onClick={() => setMode("SOLO")}>
+              <strong>SOLO</strong>
+              <span>Race 100m against your best ghost. Control power with your index finger on camera, or a slider.</span>
+            </button>
+            <button type="button" className="mode-card" onClick={() => setMode("ONLINE")}>
+              <strong>ONLINE</strong>
+              <span>Create a room, share the code, and race 2 to 7 friends live.</span>
+            </button>
+          </div>
+        </main>
+      )}
+      {mode === "SOLO" && <SoloGame drawingUrl={drawingUrl} onDrawing={handleDrawing} />}
+      {mode === "ONLINE" && <OnlineGame initialCode={linkCode ?? ""} drawingUrl={drawingUrl} />}
     </div>
   );
 }

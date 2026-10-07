@@ -8,7 +8,7 @@ export default defineConfig({
   // three.js alone is ~1MB minified; one chunk is fine for this demo.
   build: { chunkSizeWarningLimit: 1500 },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "supabase/**/*.test.ts"],
     environment: "node",
   },
 });

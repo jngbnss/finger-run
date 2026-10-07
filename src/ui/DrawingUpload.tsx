@@ -57,6 +57,7 @@ export function DrawingUpload({ drawingUrl, onDrawing }: DrawingUploadProps) {
         ref={input}
         type="file"
         accept="image/png,image/jpeg"
+        aria-label="Drawing file (PNG or JPG, up to 5MB)"
         onChange={handleChange}
         hidden
       />

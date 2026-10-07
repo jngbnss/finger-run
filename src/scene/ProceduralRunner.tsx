@@ -7,7 +7,7 @@ import { GHOST_COLOR, GHOST_OPACITY, PLAYER_COLOR, type RunnerVisualProps } from
 const BASE_CADENCE_HZ = 1.4;
 
 /** Stick robot built from primitives; faces +X. Fallback when the GLB is unusable. */
-export function ProceduralRunner({ animationScale, running, ghost }: RunnerVisualProps) {
+export function ProceduralRunner({ animationScale, running, ghost, tint }: RunnerVisualProps) {
   const body = useRef<Group>(null);
   const leftLeg = useRef<Group>(null);
   const rightLeg = useRef<Group>(null);
@@ -46,7 +46,7 @@ export function ProceduralRunner({ animationScale, running, ghost }: RunnerVisua
       emissiveIntensity={ghost ? 0.4 : 0}
     />
   );
-  const main = ghost ? GHOST_COLOR : PLAYER_COLOR;
+  const main = ghost ? GHOST_COLOR : (tint ?? PLAYER_COLOR);
   const joint = ghost ? GHOST_COLOR : "#d9dee8";
 
   const limb = (length: number) => (

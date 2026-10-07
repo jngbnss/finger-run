@@ -11,8 +11,6 @@ import {
 import { MAX_SPEED_MPS } from "../game/powerCurve";
 import { RACE_DISTANCE_M } from "../game/raceEngine";
 
-const TRACK_HALF_WIDTH = 2.5;
-const LANE_LINES_Z = [-2, 0, 2];
 const MARKERS_M = [10, 20, 30, 40, 50, 60, 70, 80, 90];
 
 function labelTexture(text: string): CanvasTexture {
@@ -49,7 +47,20 @@ function checkerTexture(): CanvasTexture {
   return t;
 }
 
-export function Track() {
+/** Lane centre z for lane 1..laneCount. Solo uses 2 lanes of 2m (z = -1, +1). */
+export function laneZ(lane: number, laneCount: number, laneWidth: number): number {
+  return (lane - (laneCount + 1) / 2) * laneWidth;
+}
+
+export function trackHalfWidth(laneCount: number, laneWidth: number): number {
+  return (laneCount * laneWidth) / 2 + 0.5;
+}
+
+export function Track({ laneCount = 2, laneWidth = 2 }: { laneCount?: number; laneWidth?: number }) {
+  const TRACK_HALF_WIDTH = trackHalfWidth(laneCount, laneWidth);
+  const LANE_LINES_Z = Array.from({ length: laneCount + 1 }, (_, i) => (i - laneCount / 2) * laneWidth);
+  const postZ = TRACK_HALF_WIDTH + 0.25;
+  const markerZ = -(TRACK_HALF_WIDTH + 0.6);
   const labels = useMemo(() => MARKERS_M.map((m) => labelTexture(`${m}m`)), []);
   const checker = useMemo(checkerTexture, []);
   useEffect(
@@ -93,7 +104,7 @@ export function Track() {
         <meshBasicMaterial map={checker} />
       </mesh>
       {/* start posts */}
-      {[-2.75, 2.75].map((z) => (
+      {[-postZ, postZ].map((z) => (
         <mesh key={z} position={[0, 0.6, z]}>
           <boxGeometry args={[0.15, 1.2, 0.15]} />
           <meshStandardMaterial color="#39ff88" emissive="#39ff88" emissiveIntensity={0.6} />
@@ -106,11 +117,11 @@ export function Track() {
             <planeGeometry args={[0.05, TRACK_HALF_WIDTH * 2]} />
             <meshBasicMaterial color="#e8f0ff" transparent opacity={0.25} />
           </mesh>
-          <mesh position={[0, 0.35, -3.1]}>
+          <mesh position={[0, 0.35, markerZ]}>
             <boxGeometry args={[0.12, 0.7, 0.12]} />
             <meshStandardMaterial color="#ffe14d" emissive="#ffe14d" emissiveIntensity={0.5} />
           </mesh>
-          <sprite position={[0, 1.05, -3.1]} scale={[1.2, 0.6, 1]}>
+          <sprite position={[0, 1.05, markerZ]} scale={[1.2, 0.6, 1]}>
             <spriteMaterial map={labels[i]} transparent />
           </sprite>
         </group>
@@ -123,7 +134,15 @@ const SPEED_LINE_COUNT = 28;
 const SPEED_LINE_SPAN = 24;
 
 /** Streaks that rush past the player; visible only at high speed. */
-export function SpeedLines({ distanceM, speedMps }: { distanceM: number; speedMps: number }) {
+export function SpeedLines({
+  distanceM,
+  speedMps,
+  halfWidth = 2.5,
+}: {
+  distanceM: number;
+  speedMps: number;
+  halfWidth?: number;
+}) {
   const group = useRef<Group>(null);
   const material = useMemo(
     () => new MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false }),
@@ -138,9 +157,9 @@ export function SpeedLines({ distanceM, speedMps }: { distanceM: number; speedMp
           const v = Math.sin((i + 1) * 12.9898 + n * 78.233) * 43758.5453;
           return v - Math.floor(v);
         };
-        return { x: r(1) * SPEED_LINE_SPAN, y: 0.2 + r(2) * 2.6, z: -3.2 + r(3) * 6.4 };
+        return { x: r(1) * SPEED_LINE_SPAN, y: 0.2 + r(2) * 2.6, z: (r(3) * 2 - 1) * (halfWidth + 0.7) };
       }),
-    [],
+    [halfWidth],
   );
 
   useFrame((_, delta) => {

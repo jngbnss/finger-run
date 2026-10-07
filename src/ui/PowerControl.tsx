@@ -1,33 +1,18 @@
-import type { CSSProperties } from "react";
 import type { RaceSnapshot, StoredBest } from "../game/types";
 import { formatTime } from "./Hud";
 
 interface PowerControlProps {
   race: RaceSnapshot;
   best: StoredBest | null;
-  onPower: (power: number) => void;
   onStart: () => void;
   onReset: () => void;
   onClearBest: () => void;
 }
 
-export function PowerControl({ race, best, onPower, onStart, onReset, onClearBest }: PowerControlProps) {
+/** Solo race controls: START, RESET and the best time. */
+export function PowerControl({ race, best, onStart, onReset, onClearBest }: PowerControlProps) {
   return (
-    <section className="card controls">
-      <label className="power" htmlFor="power">
-        <span>POWER</span>
-        <output htmlFor="power">{race.targetPower}</output>
-      </label>
-      <input
-        id="power"
-        type="range"
-        min={0}
-        max={100}
-        step={1}
-        value={race.targetPower}
-        onChange={(e) => onPower(Number(e.target.value))}
-        style={{ "--fill": `${race.targetPower}%` } as CSSProperties}
-      />
+    <section className="card controls action-card" aria-label="Race controls">
       <div className="buttons">
         <button type="button" className="primary" onClick={onStart} disabled={race.phase !== "IDLE"}>
           START

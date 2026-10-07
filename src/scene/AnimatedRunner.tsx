@@ -36,11 +36,18 @@ function ghostify(material: Material): Material {
   return m;
 }
 
+/** Body material recoloured to a lane colour. */
+function tinted(material: Material, color: string): Material {
+  const m = material.clone() as MeshStandardMaterial;
+  if (m.color) m.color = new Color(color);
+  return m;
+}
+
 /**
  * Rigged GLB runner. Load failures and missing clips throw so the surrounding
  * error boundary can swap in the procedural runner.
  */
-export function AnimatedRunner({ animationScale, running, ghost }: RunnerVisualProps) {
+export function AnimatedRunner({ animationScale, running, ghost, tint }: RunnerVisualProps) {
   const gltf = useGLTF(MODEL_URL);
 
   const clip = useMemo(() => {
@@ -58,13 +65,16 @@ export function AnimatedRunner({ animationScale, running, ghost }: RunnerVisualP
         obj.material = Array.isArray(obj.material)
           ? obj.material.map(ghostify)
           : ghostify(obj.material);
+      } else if (tint) {
+        const recolor = (m: Material) => (m.name === "Main" ? tinted(m, tint) : m);
+        obj.material = Array.isArray(obj.material) ? obj.material.map(recolor) : recolor(obj.material);
       }
     });
     // Precise mode applies bone transforms; raw skinned geometry is in different units.
     model.updateMatrixWorld(true);
     const height = new Box3().setFromObject(model, true).getSize(new Vector3()).y;
     return { model, scale: height > 0 ? TARGET_HEIGHT_M / height : 1 };
-  }, [gltf.scene, ghost]);
+  }, [gltf.scene, ghost, tint]);
 
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const action = useMemo(() => mixer.clipAction(clip), [mixer, clip]);

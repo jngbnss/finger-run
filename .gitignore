@@ -3,3 +3,8 @@ dist/
 *.tsbuildinfo
 .vite/
 .gstack/
+.env
+.env.local
+.env.*.local
+test-results/
+playwright-report/
