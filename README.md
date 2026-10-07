@@ -59,9 +59,9 @@ A race ends at 500m (FINISHED) or after 180 seconds (DNF). Top speed is 9 m/s, s
 Draw a character (a stick figure is fine) with a dark pen on plain paper, take a photo and upload it in **Your drawing runner**.
 
 1. **Cut out:** the paper colour is detected from the border and flood-filled away; the largest remaining shape is your character (enclosed white areas such as a face stay). Result: a transparent PNG, at most 384px.
-2. **Joints:** 15 stick-figure joints (head, neck, hips, shoulders, elbows, hands, hip joints, knees, feet) are guessed from the silhouette. In the editor you drag them into place (or select one and use the arrow keys), optionally **FLIP** the drawing, then press **USE THIS RUNNER**.
-3. **3D:** the cut-out becomes a grid mesh whose front and back are pushed out by the distance to the outline, so the body and limbs get rounded, plush-like volume ("inflation", as in Monster Mash). Every vertex is skinned to its two nearest bones.
-4. **Run:** a run cycle swings legs and arms in opposition, folds the knees and bobs the hips, at the speed set by your power. The figure turns its drawn side to the chase camera. Without a drawing (or with the box unticked) you race as the robot.
+2. **Joints:** 15 stick-figure joints are guessed from the silhouette (the neck is the first narrow row under the head). In the editor you drag them into place (or select one and use the arrow keys; the selected dot shows its name), optionally **FLIP** the drawing, then press **USE THIS RUNNER**. Dot colours: yellow = middle (head, neck, hips), blue = the arm and leg on the picture's left, orange = the arm and leg on the picture's right; each arm is shoulder, elbow, hand and each leg is hip, knee, foot.
+3. **3D:** the cut-out becomes a grid mesh whose front and back are pushed out by the distance to the outline, so the body and limbs get rounded, plush-like volume ("inflation", as in Monster Mash). Everything above the neck is bound rigidly to the head so the face never warps; elsewhere each vertex follows its nearest bone, blended only with a connected bone at joints.
+4. **Run:** the figure faces the finish line (the chase camera sees its back) and swings its legs and arms forward and back in opposition, folds the knees and bobs the hips, at the speed set by your power. Without a drawing (or with the box unticked) you race as the robot.
 
 AI 3D model conversion (TripoSR / UniRig) is not connected; the shape is an inflated cut-out, built entirely in the browser.
 

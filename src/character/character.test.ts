@@ -107,6 +107,9 @@ describe("joint guessing", () => {
 
   it("finds head on top, hands at the sides and feet at the bottom", () => {
     expect(joints.head.y).toBeLessThan(joints.neck.y);
+    // The neck sits below the head disc (head centre y=14, radius 9).
+    expect(joints.neck.y).toBeGreaterThanOrEqual(22);
+    expect(joints.neck.y).toBeLessThan(32);
     expect(joints.neck.y).toBeLessThan(joints.root.y);
     expect(joints.lHand.x).toBeLessThan(25);
     expect(joints.rHand.x).toBeGreaterThan(75);
@@ -153,8 +156,25 @@ describe("skinning weights", () => {
     expect(w.weight[1]).toBeGreaterThan(0.3);
   });
 
-  it("binds the head to the head bone", () => {
-    expect(skinWeights({ x: 52, y: 10 }, joints, 4).index[0]).toBe(bone("head"));
+  it("keeps everything above the neck rigidly on the head", () => {
+    expect(skinWeights({ x: 52, y: 10 }, joints, 4)).toEqual({ index: [bone("head"), bone("head")], weight: [1, 0] });
+    // A wide cheek right above the shoulder is still head, not arm.
+    expect(skinWeights({ x: 40, y: 20 }, joints, 4).weight[0]).toBe(1);
+    expect(skinWeights({ x: 40, y: 20 }, joints, 4).index[0]).toBe(bone("head"));
+  });
+
+  it("lets a raised arm above the neck follow the arm", () => {
+    const raised = { ...joints, lElbow: { x: 34, y: 18 }, lHand: { x: 30, y: 2 } };
+    expect(skinWeights({ x: 30, y: 4 }, raised, 4).index[0]).toBe(bone("lForearm"));
+  });
+
+  it("only blends bones that are connected", () => {
+    const w = skinWeights({ x: 46, y: 50 }, joints, 4);
+    const names = w.index.map((i) => BONES[i].name);
+    if (w.weight[1] > 0) {
+      const pair = names.join("|");
+      expect(["spine|lUpperArm", "lUpperArm|spine", "spine|lThigh", "lThigh|spine", "spine|rThigh", "rThigh|spine", "spine|head", "head|spine", "lUpperArm|lForearm", "lForearm|lUpperArm"]).toContain(pair);
+    }
   });
 });
 

@@ -842,3 +842,21 @@ button.link {
 .preview.cutout img {
   background: repeating-conic-gradient(#e8edf7 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
 }
+.joint-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.joint-legend span {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  border: 2px solid #000;
+  border-radius: 50%;
+  vertical-align: -2px;
+}

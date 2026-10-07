@@ -153,10 +153,30 @@ export function guessJoints(mask: Mask): Joints {
   lFoot ??= { x: cx - w * 0.12, y: box.y1 };
   rFoot ??= { x: cx + w * 0.12, y: box.y1 };
 
-  const head = { x: cx, y: box.y0 + h * 0.06 };
-  const neck = { x: cx, y: box.y0 + h * 0.22 };
-  const root = { x: cx, y: box.y0 + h * 0.55 };
-  const shoulderY = box.y0 + h * 0.26;
+  // Neck: the first clearly narrow row below the head blob.
+  const runWidth = (y: number) => {
+    const yy = Math.round(y);
+    let x0 = Math.round(cx);
+    let x1 = Math.round(cx);
+    if (!at(x0, yy)) return 0;
+    while (x0 > box.x0 && at(x0 - 1, yy)) x0--;
+    while (x1 < box.x1 && at(x1 + 1, yy)) x1++;
+    return x1 - x0 + 1;
+  };
+  let headWidth = 0;
+  let neckY = box.y0 + h * 0.22;
+  for (let y = box.y0; y <= box.y0 + h * 0.45; y++) {
+    const width = runWidth(y);
+    headWidth = Math.max(headWidth, width);
+    if (y > box.y0 + h * 0.08 && width > 0 && width < headWidth * 0.6) {
+      neckY = y;
+      break;
+    }
+  }
+  const head = { x: cx, y: box.y0 + (neckY - box.y0) * 0.3 };
+  const neck = { x: cx, y: neckY };
+  const root = { x: cx, y: Math.max(neckY + h * 0.2, box.y0 + h * 0.55) };
+  const shoulderY = neckY + h * 0.05;
   const lShoulder = { x: cx + (lHand.x - cx) * 0.3, y: shoulderY };
   const rShoulder = { x: cx + (rHand.x - cx) * 0.3, y: shoulderY };
   const hipY = box.y0 + h * 0.58;
@@ -191,32 +211,52 @@ export function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t));
 }
 
+/** Bones that meet at a joint (or both sit on the torso) and may blend. */
+const ADJACENT = new Set(
+  [
+    ["spine", "head"],
+    ["spine", "lUpperArm"],
+    ["spine", "rUpperArm"],
+    ["spine", "lThigh"],
+    ["spine", "rThigh"],
+    ["lThigh", "rThigh"],
+    ["lUpperArm", "lForearm"],
+    ["rUpperArm", "rForearm"],
+    ["lThigh", "lShin"],
+    ["rThigh", "rShin"],
+  ].flatMap(([a, b]) => [`${a}|${b}`, `${b}|${a}`]),
+);
+
+const HEAD = BONES.findIndex((b) => b.name === "head");
+
 /**
- * Linear-blend-skinning weights for one point: the two nearest bones, weighted by
- * inverse squared distance so joints bend smoothly.
+ * Linear-blend-skinning weights for one point.
+ * - Everything above the neck belongs rigidly to the head (so the face never warps),
+ *   unless it is clearly part of an arm raised above the neck.
+ * - Elsewhere: the nearest bone, blended with its nearest *connected* bone by inverse
+ *   squared distance, so joints bend smoothly but a cheek never follows an arm.
  */
 export function skinWeights(p: Point, joints: Joints, softness: number): { index: [number, number]; weight: [number, number] } {
-  let i1 = 0;
-  let i2 = 0;
-  let d1 = Infinity;
-  let d2 = Infinity;
-  BONES.forEach((bone, i) => {
-    const d = distanceToSegment(p, joints[bone.from], joints[bone.to]);
-    if (d < d1) {
-      i2 = i1;
-      d2 = d1;
-      i1 = i;
-      d1 = d;
-    } else if (d < d2) {
-      i2 = i;
-      d2 = d;
-    }
+  const dist = BONES.map((b) => distanceToSegment(p, joints[b.from], joints[b.to]));
+  const aboveNeck = p.y <= joints.neck.y;
+  // Above the neck only the head and bones that themselves reach above the neck (raised arms) compete.
+  const reachesAboveNeck = (i: number) => Math.min(joints[BONES[i].from].y, joints[BONES[i].to].y) <= joints.neck.y;
+  const allowed = (i: number) => !aboveNeck || i === HEAD || reachesAboveNeck(i);
+  let i1 = HEAD;
+  dist.forEach((d, i) => {
+    if (allowed(i) && d < dist[i1]) i1 = i;
   });
+  if (i1 === HEAD && aboveNeck) return { index: [HEAD, HEAD], weight: [1, 0] };
+
+  let i2 = -1;
+  dist.forEach((d, i) => {
+    if (i !== i1 && ADJACENT.has(`${BONES[i1].name}|${BONES[i].name}`) && (i2 < 0 || d < dist[i2])) i2 = i;
+  });
+  if (i2 < 0) return { index: [i1, i1], weight: [1, 0] };
   const e = softness * softness;
-  const w1 = 1 / (d1 * d1 + e);
-  const w2 = Number.isFinite(d2) ? 1 / (d2 * d2 + e) : 0;
-  const total = w1 + w2;
-  return { index: [i1, i2], weight: [w1 / total, w2 / total] };
+  const w1 = 1 / (dist[i1] * dist[i1] + e);
+  const w2 = 1 / (dist[i2] * dist[i2] + e);
+  return { index: [i1, i2], weight: [w1 / (w1 + w2), w2 / (w1 + w2)] };
 }
 
 /** Joints <-> compact string for presence ("x,y" pairs in 0..1, 3 decimals, then flip flag). */

@@ -85,13 +85,19 @@ describe("drawn character rig", () => {
 });
 
 describe("run pose", () => {
-  it("stands still at zero amount and swings legs in opposition when running", () => {
+  it("stands still at zero amount and swings limbs forward and back in opposition when running", () => {
     const still = runPose(1.3, 0);
-    expect(Object.values(still.rotations).every((r) => Math.abs(r) < 1e-9)).toBe(true);
+    expect(Object.values(still.pitch).every((r) => Math.abs(r) < 1e-9)).toBe(true);
     expect(still.bob).toBe(0);
     const run = runPose(Math.PI / 2, 1);
-    expect(run.rotations.lThigh).toBeCloseTo(-run.rotations.rThigh);
-    expect(run.rotations.lUpperArm).toBeCloseTo((-run.rotations.lThigh * 0.6) / 0.42);
-    expect(Math.sign(run.rotations.lThigh)).toBe(-Math.sign(run.rotations.lUpperArm));
+    expect(run.pitch.lThigh).toBeCloseTo(-run.pitch.rThigh);
+    // Each arm swings opposite to the leg on its side.
+    expect(Math.sign(run.pitch.lThigh)).toBe(-Math.sign(run.pitch.lUpperArm));
+    // The knee of the leg swinging back folds; the forward leg stays straight.
+    expect(run.pitch.lThigh).toBeLessThan(0);
+    expect(run.pitch.lShin).toBeGreaterThan(0);
+    expect(run.pitch.rShin).toBe(0);
+    // The head never tilts against the body.
+    expect(run.pitch.head).toBe(0);
   });
 });

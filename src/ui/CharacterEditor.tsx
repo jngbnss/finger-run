@@ -20,7 +20,11 @@ const sideOf = (j: JointName) => (j.startsWith("l") ? "l" : j.startsWith("r") ? 
 export function CharacterEditor({ draft, initialJoints, initialFlip, onConfirm, onCancel }: CharacterEditorProps) {
   const [joints, setJoints] = useState<Joints>(initialJoints);
   const [flip, setFlip] = useState(initialFlip);
-  const [active, setActive] = useState<JointName | null>(null);
+  /** Joint being dragged with a pointer. */
+  const [dragging, setDragging] = useState<JointName | null>(null);
+  /** Joint whose name is shown (dragged or keyboard-focused). */
+  const [selected, setSelected] = useState<JointName | null>(null);
+  const active = dragging ?? selected;
   const svg = useRef<SVGSVGElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const { width, height } = draft;
@@ -73,9 +77,9 @@ export function CharacterEditor({ draft, initialJoints, initialFlip, onConfirm, 
             role="group"
             aria-label="Character skeleton"
             style={{ transform: flip ? "scaleX(-1)" : undefined }}
-            onPointerMove={(e) => active && move(active, toImage(e))}
-            onPointerUp={() => setActive(null)}
-            onPointerLeave={() => setActive(null)}
+            onPointerMove={(e) => dragging && move(dragging, toImage(e))}
+            onPointerUp={() => setDragging(null)}
+            onPointerLeave={() => setDragging(null)}
           >
             <image href={draft.url} width={width} height={height} />
             {BONES.map((b) => (
@@ -113,15 +117,45 @@ export function CharacterEditor({ draft, initialJoints, initialFlip, onConfirm, 
                 aria-valuetext={`x ${Math.round(joints[j].x)}, y ${Math.round(joints[j].y)}`}
                 className="joint"
                 data-joint={j}
+                onFocus={() => setSelected(j)}
+                onBlur={() => setSelected((s) => (s === j ? null : s))}
                 onPointerDown={(e) => {
                   (e.target as Element).setPointerCapture?.(e.pointerId);
-                  setActive(j);
+                  setDragging(j);
                 }}
                 onKeyDown={onKey(j)}
               />
             ))}
+            {active && (
+              <text
+                x={joints[active].x}
+                y={joints[active].y - r * 1.9}
+                textAnchor="middle"
+                fontSize={r * 2.2}
+                fontWeight={800}
+                fill="#ffffff"
+                stroke="#000000"
+                strokeWidth={r * 0.35}
+                paintOrder="stroke"
+                style={{ transform: flip ? "scaleX(-1)" : undefined, transformBox: "fill-box", transformOrigin: "center" }}
+              >
+                {JOINT_LABELS[active]}
+              </text>
+            )}
           </svg>
         </div>
+        <ul className="joint-legend" aria-label="Dot colours">
+          <li>
+            <span style={{ background: SIDE_COLOR.c }} /> Middle: head, neck, hips
+          </li>
+          <li>
+            <span style={{ background: SIDE_COLOR.l }} /> Arm &amp; leg on the picture&apos;s left
+          </li>
+          <li>
+            <span style={{ background: SIDE_COLOR.r }} /> Arm &amp; leg on the picture&apos;s right
+          </li>
+        </ul>
+        <p className="hint">Each arm: shoulder, elbow, hand. Each leg: hip, knee, foot. Press a dot to see its name.</p>
         <div className="buttons">
           <button type="button" onClick={() => setFlip((f) => !f)} aria-pressed={flip}>
             FLIP

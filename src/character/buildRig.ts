@@ -62,7 +62,7 @@ export function buildRig(mask: Mask, joints: Joints, texture: Texture, flip = fa
   const uvs = new Float32Array(vertexCount * 2 * 2);
   const skinIndex = new Uint16Array(vertexCount * 2 * 4);
   const skinWeight = new Float32Array(vertexCount * 2 * 4);
-  const softness = heightPx * 0.03;
+  const softness = heightPx * 0.015;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {

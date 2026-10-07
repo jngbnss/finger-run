@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { SRGBColorSpace, Texture, Vector3, type Group } from "three";
+import { SRGBColorSpace, Texture } from "three";
 import { buildRig, type CharacterRig } from "../character/buildRig";
 import { loadCutout } from "../character/makeCharacter";
 import { runPose } from "../character/runPose";
@@ -25,12 +25,12 @@ interface DrawnRunnerProps {
 }
 
 /**
- * The player's own drawing as an inflated, skinned 3D figure that turns its drawn
- * side to the chase camera and runs with its stick-figure skeleton.
+ * The player's own drawing as an inflated, skinned 3D figure. It faces the running
+ * direction (+X), so the chase camera sees its back, and its limbs swing forward and
+ * back with the stick-figure skeleton.
  */
 export function DrawnRunner({ character, animationScale, running, onError }: DrawnRunnerProps) {
   const [rig, setRig] = useState<CharacterRig | null>(null);
-  const facing = useRef<Group>(null);
   const phase = useRef(0);
   const amount = useRef(0);
   const errorRef = useRef(onError);
@@ -64,9 +64,8 @@ export function DrawnRunner({ character, animationScale, running, onError }: Dra
     };
   }, [character.url, character.rig]);
 
-  const world = new Vector3();
-  useFrame(({ camera }, delta) => {
-    if (!rig || !facing.current) return;
+  useFrame((_, delta) => {
+    if (!rig) return;
     const dt = Math.min(delta, 0.05);
     const scale = running ? animationScale : 0;
     phase.current += dt * scale * BASE_CADENCE_HZ * Math.PI * 2;
@@ -74,16 +73,13 @@ export function DrawnRunner({ character, animationScale, running, onError }: Dra
     amount.current += (target - amount.current) * Math.min(1, dt * 8);
 
     const pose = runPose(phase.current, amount.current);
-    for (const [name, angle] of Object.entries(pose.rotations)) {
+    for (const [name, angle] of Object.entries(pose.pitch)) {
       const bone = rig.bones[name];
-      if (bone) bone.rotation.z = angle;
+      if (bone) bone.rotation.x = angle;
     }
     rig.root.position.y = rig.rootRest.y + pose.bob;
-
-    // Turn the drawn side toward the chase camera so players see their drawing (not mirrored).
-    facing.current.getWorldPosition(world);
-    facing.current.rotation.y = Math.atan2(camera.position.x - world.x, camera.position.z - world.z);
   });
 
-  return <group ref={facing}>{rig && <primitive object={rig.mesh} />}</group>;
+  // The rig's front is +Z; turn it to face the race direction (+X).
+  return <group rotation={[0, Math.PI / 2, 0]}>{rig && <primitive object={rig.mesh} />}</group>;
 }
