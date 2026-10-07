@@ -1,4 +1,4 @@
-export const MAX_SPEED_MPS = 18;
+export const MAX_SPEED_MPS = 9;
 export const DEAD_ZONE = 5;
 
 export function clamp(value: number, min: number, max: number): number {

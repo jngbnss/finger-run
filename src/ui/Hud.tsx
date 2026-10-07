@@ -1,3 +1,4 @@
+import { RACE_DISTANCE_M } from "../game/raceEngine";
 import type { RaceSnapshot } from "../game/types";
 
 export function formatTime(ms: number): string {
@@ -16,7 +17,7 @@ export function Hud({ race }: { race: RaceSnapshot }) {
   const stats: Array<[string, string]> = [
     ["Power", `${race.smoothedPower.toFixed(0)} / ${race.targetPower.toFixed(0)}`],
     ["Speed", `${race.speedMps.toFixed(1)} m/s`],
-    ["Distance", `${race.distanceM.toFixed(1)} / 100 m`],
+    ["Distance", `${race.distanceM.toFixed(1)} / ${RACE_DISTANCE_M} m`],
     ["Time", formatTime(race.elapsedS * 1000)],
     ["Anim speed", `${race.animationScale.toFixed(2)}×`],
   ];
@@ -32,7 +33,7 @@ export function Hud({ race }: { race: RaceSnapshot }) {
         ))}
       </dl>
       <div className="progress" aria-hidden>
-        <div style={{ width: `${race.distanceM}%` }} />
+        <div style={{ width: `${(race.distanceM / RACE_DISTANCE_M) * 100}%` }} />
       </div>
     </section>
   );

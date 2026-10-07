@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clockOffset, measureClockOffset } from "./clock";
 import { assignLane } from "./lanes";
+import { TIMEOUT_S } from "../game/raceEngine";
 import { applyInput, createMultiRace, rankPlayers, stepMultiRace, takeSnapshot } from "./multiRace";
 import { PROTOCOL_VERSION, type InputMessage, type SnapshotMessage, type SnapshotPlayer } from "./protocol";
 import { SnapshotBuffer } from "./snapshotBuffer";
@@ -115,7 +116,7 @@ describe("multi race coordinator", () => {
   it("finishes when all 7 are FINISHED or DNF", () => {
     let state = race7();
     ids.forEach((id, i) => (state = applyInput(state, input(id, 1, i === 6 ? 0 : 100 - i * 5), START - 3000)));
-    for (let t = START - 3000; t <= START + 61_000; t += 1000) {
+    for (let t = START - 3000; t <= START + (TIMEOUT_S + 1) * 1000; t += 1000) {
       // Keep inputs fresh.
       ids.forEach((id, i) => (state = applyInput(state, input(id, t, i === 6 ? 0 : 100 - i * 5), t)));
       state = stepMultiRace(state, t);
@@ -123,7 +124,7 @@ describe("multi race coordinator", () => {
     expect(state.phase).toBe("FINISHED");
     expect(state.players.slice(0, 6).every((p) => p.race.phase === "FINISHED")).toBe(true);
     expect(state.players[6].race.phase).toBe("DNF");
-    const [, snapshot] = takeSnapshot(state, START + 61_000);
+    const [, snapshot] = takeSnapshot(state, START + (TIMEOUT_S + 1) * 1000);
     const ranked = rankPlayers(snapshot.players);
     expect(ranked.map((p) => p.userId)).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
     expect(ranked[6].status).toBe("DNF");

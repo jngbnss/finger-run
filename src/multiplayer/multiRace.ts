@@ -1,4 +1,4 @@
-import { COUNTDOWN_S, MAX_FRAME_DT_S, createRace, setTargetPower, startRace, stepRace } from "../game/raceEngine";
+import { COUNTDOWN_S, MAX_FRAME_DT_S, TIMEOUT_S, createRace, setTargetPower, startRace, stepRace } from "../game/raceEngine";
 import type { RaceSnapshot } from "../game/types";
 import {
   INPUT_TIMEOUT_MS,
@@ -82,7 +82,7 @@ export function applyInput(state: MultiRaceState, msg: InputMessage, receivedAt:
   return { ...state, players };
 }
 
-const MAX_CATCH_UP_MS = 70_000;
+const MAX_CATCH_UP_MS = (TIMEOUT_S + 10) * 1000;
 
 /** Advances every player to `serverNow` in engine-sized steps. */
 export function stepMultiRace(state: MultiRaceState, serverNow: number): MultiRaceState {

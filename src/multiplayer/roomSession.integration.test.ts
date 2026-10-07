@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RACE_DISTANCE_M, TIMEOUT_S } from "../game/raceEngine";
 import { createFakeClient, FakeRealtimeHub, FakeRoomServer } from "./fake";
 import { RoomError } from "./protocol";
 import { RoomSession, type SessionDeps } from "./roomSession";
@@ -100,7 +101,7 @@ describe("7-player room over the fake transport", () => {
     expect(running[0].runners.every((r) => r.status === "RUNNING")).toBe(true);
     expect(running[3].runners.every((r) => r.distanceM > 0)).toBe(true);
 
-    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 20_000);
+    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 200_000);
     const results = players.map((p) => p.session.getView().results!);
     const first = results[0].map((r) => [r.userId, r.rank, r.finishTimeMs]);
     expect(results[0]).toHaveLength(7);
@@ -186,7 +187,7 @@ describe("7-player room over the fake transport", () => {
     const back = players[2].session.getView();
     expect(back.stale).toBe(false);
     expect(back.notice).toBeNull();
-    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 70_000);
+    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 200_000);
     expect(players[2].session.getView().results!.find((r) => r.userId === "u2")!.status).toBe("FINISHED");
   });
 
@@ -247,13 +248,13 @@ describe("7-player room over the fake transport", () => {
     expect(server.resultsOf(guests[0].session.roomId)).toBeNull();
   });
 
-  it("marks a player who never moves as DNF at exactly 60s", async () => {
+  it("marks a player who never moves as DNF at exactly the time limit", async () => {
     const players = await room(1);
     await allReady(players);
     await players[0].session.start();
     players[0].session.setLocalPower(100);
     players[1].session.setLocalPower(0);
-    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 70_000);
+    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 200_000);
     for (const p of players) {
       const results = p.session.getView().results!;
       expect(results.map((r) => [r.userId, r.status, r.rank])).toEqual([
@@ -263,7 +264,7 @@ describe("7-player room over the fake transport", () => {
       expect(results[1].distanceM).toBe(0);
     }
     const raceEnd = players[0].session.getView();
-    expect(raceEnd.serverNow - raceEnd.startAt!).toBeGreaterThanOrEqual(60_000);
+    expect(raceEnd.serverNow - raceEnd.startAt!).toBeGreaterThanOrEqual(TIMEOUT_S * 1000);
   });
 
   it("shows the host's saved results to a client that missed the final snapshot", async () => {
@@ -273,9 +274,9 @@ describe("7-player room over the fake transport", () => {
     players.forEach((p) => p.session.setLocalPower(100));
     // u2's connection drops just before the line; the host still finishes its run.
     const hostView = () => players[0].session.getView().runners.find((r) => r.userId === "u2");
-    for (let i = 0; i < 400 && (hostView()?.distanceM ?? 0) < 95; i++) await advance(50, players);
+    for (let i = 0; i < 4000 && (hostView()?.distanceM ?? 0) < RACE_DISTANCE_M - 5; i++) await advance(50, players);
     players[2].setOnline(false);
-    await untilAll(players.slice(0, 2), (p) => p.session.getView().phase === "RESULTS", 70_000);
+    await untilAll(players.slice(0, 2), (p) => p.session.getView().phase === "RESULTS", 200_000);
     const hostBoard = players[0].session.getView().results!.map((r) => [r.userId, r.rank, r.status, r.finishTimeMs]);
     players[2].setOnline(true);
     await advance(3000, players);
@@ -316,7 +317,7 @@ describe("7-player room over the fake transport", () => {
     await allReady(players);
     await players[0].session.start();
     players.forEach((p) => p.session.setLocalPower(100));
-    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 20_000);
+    await untilAll(players, (p) => p.session.getView().phase === "RESULTS", 200_000);
     const firstRace = players[0].session.getView().raceId;
     for (const p of players) await p.session.rematch();
     await advance(2500, players);

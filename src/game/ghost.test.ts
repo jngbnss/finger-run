@@ -9,7 +9,7 @@ import {
   parseStoredBest,
   saveBestIfBetter,
 } from "./ghost";
-import { COUNTDOWN_S, createRace, startRace, stepRace } from "./raceEngine";
+import { COUNTDOWN_S, RACE_DISTANCE_M, TIMEOUT_S, createRace, startRace, stepRace } from "./raceEngine";
 import type { RaceSnapshot, StoredBest } from "./types";
 
 class MemoryStorage {
@@ -30,14 +30,14 @@ const best: StoredBest = {
   timeMs: 2000,
   samples: [
     { elapsedMs: 0, distanceM: 0, smoothedPower: 0 },
-    { elapsedMs: 1000, distanceM: 40, smoothedPower: 80 },
-    { elapsedMs: 2000, distanceM: 100, smoothedPower: 100 },
+    { elapsedMs: 1000, distanceM: 200, smoothedPower: 80 },
+    { elapsedMs: 2000, distanceM: RACE_DISTANCE_M, smoothedPower: 100 },
   ],
 };
 
 function finishRace(power: number, dt = 1 / 60): RaceSnapshot {
   let race = startRace(createRace(power));
-  for (let i = 0; i < 4000 && race.phase !== "FINISHED"; i++) race = stepRace(race, dt);
+  for (let i = 0; i < 20_000 && race.phase !== "FINISHED"; i++) race = stepRace(race, dt);
   return race;
 }
 
@@ -48,14 +48,14 @@ describe("ghost interpolation", () => {
 
   it("interpolates between enclosing samples", () => {
     const mid = ghostAt(best, 500);
-    expect(mid.distanceM).toBeCloseTo(20);
+    expect(mid.distanceM).toBeCloseTo(100);
     expect(mid.smoothedPower).toBeCloseTo(40);
-    expect(ghostAt(best, 1500).distanceM).toBeCloseTo(70);
-    expect(ghostAt(best, 1000).distanceM).toBe(40);
+    expect(ghostAt(best, 1500).distanceM).toBeCloseTo(350);
+    expect(ghostAt(best, 1000).distanceM).toBe(200);
   });
 
   it("clamps and pauses after the final sample", () => {
-    expect(ghostAt(best, 9999)).toEqual({ distanceM: 100, smoothedPower: 100, done: true });
+    expect(ghostAt(best, 9999)).toEqual({ distanceM: RACE_DISTANCE_M, smoothedPower: 100, done: true });
   });
 });
 
@@ -79,7 +79,7 @@ describe("stored best validation", () => {
     ],
     [
       "missing finish sample",
-      { ...best, samples: best.samples.map((s, i) => (i === 2 ? { ...s, distanceM: 99 } : s)) },
+      { ...best, samples: best.samples.map((s, i) => (i === 2 ? { ...s, distanceM: RACE_DISTANCE_M - 1 } : s)) },
     ],
     [
       "unsorted",
@@ -91,7 +91,7 @@ describe("stored best validation", () => {
     ],
     [
       "distance out of range",
-      { ...best, samples: best.samples.map((s, i) => (i === 1 ? { ...s, distanceM: 140 } : s)) },
+      { ...best, samples: best.samples.map((s, i) => (i === 1 ? { ...s, distanceM: RACE_DISTANCE_M + 40 } : s)) },
     ],
     [
       "power out of range",
@@ -108,7 +108,7 @@ describe("stored best validation", () => {
         timeMs: MAX_SAMPLES,
         samples: Array.from({ length: MAX_SAMPLES + 1 }, (_, i) => ({
           elapsedMs: i,
-          distanceM: i === MAX_SAMPLES ? 100 : 0,
+          distanceM: i === MAX_SAMPLES ? RACE_DISTANCE_M : 0,
           smoothedPower: 0,
         })),
       },
@@ -138,19 +138,19 @@ describe("recording and persisting", () => {
     expect(run!.samples[0]).toMatchObject({ elapsedMs: 0, distanceM: 0 });
     const last = run!.samples[run!.samples.length - 1];
     expect(last.elapsedMs).toBe(run!.timeMs);
-    expect(last.distanceM).toBe(100);
+    expect(last.distanceM).toBe(RACE_DISTANCE_M);
     expect(run!.samples.length).toBeLessThanOrEqual(Math.ceil(run!.timeMs / 100) + 2);
     expect(run!.samples[1].elapsedMs).toBe(100);
   });
 
   it("replaces the scheduled sample when finish lands on it", () => {
-    // 0.5625m at 18 m/s takes exactly 0.03125s, landing on the 1000ms sample.
+    // 0.28125m at 9 m/s takes exactly 0.03125s, landing on the 1000ms sample.
     const done = stepRace(
       {
         ...createRace(100),
         phase: "RUNNING",
         smoothedPower: 100,
-        distanceM: 99.4375,
+        distanceM: RACE_DISTANCE_M - 0.28125,
         elapsedS: 0.96875,
         samples: [
           { elapsedMs: 0, distanceM: 0, smoothedPower: 0 },
@@ -162,7 +162,7 @@ describe("recording and persisting", () => {
     expect(done.phase).toBe("FINISHED");
     expect(done.finishTimeMs).toBe(1000);
     expect(done.samples.map((s) => s.elapsedMs)).toEqual([0, 900, 1000]);
-    expect(done.samples[2].distanceM).toBe(100);
+    expect(done.samples[2].distanceM).toBe(RACE_DISTANCE_M);
     expect(completedRun(done)).not.toBeNull();
   });
 
@@ -190,7 +190,7 @@ describe("recording and persisting", () => {
   it("never persists a DNF run", () => {
     const storage = new MemoryStorage();
     let race = startRace(createRace(0));
-    for (let i = 0; i < (COUNTDOWN_S + 61) * 20; i++) race = stepRace(race, 0.05);
+    for (let i = 0; i < (COUNTDOWN_S + TIMEOUT_S + 1) * 20; i++) race = stepRace(race, 0.05);
     expect(race.phase).toBe("DNF");
     expect(completedRun(race)).toBeNull();
     expect(saveBestIfBetter(storage, null, completedRun(race)).improved).toBe(false);

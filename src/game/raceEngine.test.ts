@@ -8,6 +8,8 @@ import {
 } from "./powerCurve";
 import {
   COUNTDOWN_S,
+  RACE_DISTANCE_M,
+  TIMEOUT_S,
   createRace,
   overlayLabel,
   resetRace,
@@ -29,7 +31,7 @@ function runningAtFullPower(overrides: Partial<RaceSnapshot> = {}): RaceSnapshot
     ...createRace(100),
     phase: "RUNNING",
     smoothedPower: 100,
-    speedMps: 18,
+    speedMps: 9,
     animationScale: 2.4,
     countdownElapsedS: COUNTDOWN_S,
     samples: [{ elapsedMs: 0, distanceM: 0, smoothedPower: 100 }],
@@ -48,7 +50,7 @@ describe("power curve", () => {
     expect(animationScaleFromPower(4.99)).toBe(0);
     expect(effectivePower(5)).toBe(0);
     expect(effectivePower(100)).toBe(1);
-    expect(speedFromPower(100)).toBeCloseTo(18);
+    expect(speedFromPower(100)).toBeCloseTo(9);
     expect(animationScaleFromPower(100)).toBeCloseTo(2.4);
   });
 
@@ -104,49 +106,49 @@ describe("race engine", () => {
   it("integrates distance from speed", () => {
     let race = runningAtFullPower();
     race = stepRace(race, 0.05);
-    expect(race.distanceM).toBeCloseTo(0.9, 10);
+    expect(race.distanceM).toBeCloseTo(0.45, 10);
     expect(race.elapsedS).toBeCloseTo(0.05, 10);
     race = run(race, 1, 0.05);
-    expect(race.distanceM).toBeCloseTo(18.9, 8);
+    expect(race.distanceM).toBeCloseTo(9.45, 8);
   });
 
   it("clamps large frame gaps so hidden-tab time does not count", () => {
     const race = stepRace(runningAtFullPower(), 5);
     expect(race.elapsedS).toBeCloseTo(0.05, 10);
-    expect(race.distanceM).toBeCloseTo(0.9, 10);
+    expect(race.distanceM).toBeCloseTo(0.45, 10);
   });
 
-  it("finishes exactly at 100m and then freezes", () => {
-    let race = run(startRace(createRace(100)), 20);
+  it("finishes exactly at the race distance and then freezes", () => {
+    let race = run(startRace(createRace(100)), 70);
     expect(race.phase).toBe("FINISHED");
-    expect(race.distanceM).toBe(100);
+    expect(race.distanceM).toBe(RACE_DISTANCE_M);
     expect(race.finishTimeMs).not.toBeNull();
     const frozen = run(race, 2);
     expect(frozen).toBe(race);
   });
 
   it("records only the partial-frame time when crossing the finish", () => {
-    const race = stepRace(runningAtFullPower({ distanceM: 99.5, elapsedS: 5 }), 0.05);
+    const race = stepRace(runningAtFullPower({ distanceM: RACE_DISTANCE_M - 0.25, elapsedS: 5 }), 0.05);
     expect(race.phase).toBe("FINISHED");
-    expect(race.distanceM).toBe(100);
-    const expectedS = 5 + 0.5 / 18;
+    expect(race.distanceM).toBe(RACE_DISTANCE_M);
+    const expectedS = 5 + 0.25 / 9;
     expect(race.elapsedS).toBeCloseTo(expectedS, 10);
     expect(race.finishTimeMs).toBeCloseTo(expectedS * 1000, 7);
     const last = race.samples[race.samples.length - 1];
     expect(last.elapsedMs).toBe(race.finishTimeMs);
-    expect(last.distanceM).toBe(100);
+    expect(last.distanceM).toBe(RACE_DISTANCE_M);
   });
 
   it("finish wins an exact tie with timeout", () => {
-    // 0.5625m left at 18 m/s takes exactly 0.03125s, which is also the time left.
-    const race = stepRace(runningAtFullPower({ distanceM: 99.4375, elapsedS: 59.96875 }), 0.05);
+    // 0.28125m left at 9 m/s takes exactly 0.03125s, which is also the time left.
+    const race = stepRace(runningAtFullPower({ distanceM: RACE_DISTANCE_M - 0.28125, elapsedS: TIMEOUT_S - 0.03125 }), 0.05);
     expect(race.phase).toBe("FINISHED");
   });
 
-  it("becomes DNF at exactly 60s without a finish time", () => {
-    let race = run(startRace(createRace(0)), COUNTDOWN_S + 70, 0.05);
+  it("becomes DNF at exactly the time limit without a finish time", () => {
+    let race = run(startRace(createRace(0)), COUNTDOWN_S + TIMEOUT_S + 10, 0.05);
     expect(race.phase).toBe("DNF");
-    expect(race.elapsedS).toBe(60);
+    expect(race.elapsedS).toBe(TIMEOUT_S);
     expect(race.finishTimeMs).toBeNull();
     race = setTargetPower(race, 100);
     expect(stepRace(race, 0.05)).toBe(race);
@@ -188,7 +190,7 @@ describe("race engine", () => {
     race = setTargetPower(race, 0);
     race = stepRace(race, 0.05);
     expect(race.speedMps).toBeGreaterThan(0);
-    expect(race.speedMps).toBeLessThan(18);
+    expect(race.speedMps).toBeLessThan(9);
     race = run(race, 1.5, 0.05);
     expect(race.smoothedPower).toBeLessThan(5);
     expect(race.speedMps).toBe(0);

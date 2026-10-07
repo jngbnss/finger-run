@@ -11,7 +11,9 @@ import {
 import { MAX_SPEED_MPS } from "../game/powerCurve";
 import { RACE_DISTANCE_M } from "../game/raceEngine";
 
-const MARKERS_M = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+/** Labelled posts every 50m; faint lines every 10m. */
+const MARKERS_M = Array.from({ length: RACE_DISTANCE_M / 50 - 1 }, (_, i) => (i + 1) * 50);
+const TICKS_M = Array.from({ length: RACE_DISTANCE_M / 10 - 1 }, (_, i) => (i + 1) * 10).filter((m) => m % 50 !== 0);
 
 function labelTexture(text: string): CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -108,6 +110,13 @@ export function Track({ laneCount = 2, laneWidth = 2 }: { laneCount?: number; la
         <mesh key={z} position={[0, 0.6, z]}>
           <boxGeometry args={[0.15, 1.2, 0.15]} />
           <meshStandardMaterial color="#39ff88" emissive="#39ff88" emissiveIntensity={0.6} />
+        </mesh>
+      ))}
+      {/* 10m lines */}
+      {TICKS_M.map((m) => (
+        <mesh key={m} rotation={[-Math.PI / 2, 0, 0]} position={[m, 0.004, 0]}>
+          <planeGeometry args={[0.04, TRACK_HALF_WIDTH * 2]} />
+          <meshBasicMaterial color="#e8f0ff" transparent opacity={0.12} />
         </mesh>
       ))}
       {/* distance markers */}

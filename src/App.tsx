@@ -43,7 +43,7 @@ export function App() {
           <div className="mode-cards">
             <button type="button" className="mode-card" onClick={() => setMode("SOLO")}>
               <strong>SOLO</strong>
-              <span>Race 100m against your best ghost. Control power with your index finger on camera, or a slider.</span>
+              <span>Race 500m against your best ghost. Control power with your index finger on camera, or a slider.</span>
             </button>
             <button type="button" className="mode-card" onClick={() => setMode("ONLINE")}>
               <strong>ONLINE</strong>

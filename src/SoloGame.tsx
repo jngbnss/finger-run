@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearStoredBest, completedRun, loadBest, saveBestIfBetter } from "./game/ghost";
-import { createRace, overlayLabel, resetRace, setTargetPower, startRace, stepRace } from "./game/raceEngine";
+import { TIMEOUT_S, createRace, overlayLabel, resetRace, setTargetPower, startRace, stepRace } from "./game/raceEngine";
 import type { RaceSnapshot, StoredBest } from "./game/types";
 import { useInputPower } from "./input/useInputPower";
 import { ghostRunner } from "./scene/GhostRunner";
@@ -85,7 +85,7 @@ export function SoloGame({ drawing }: { drawing: DrawingState }) {
   if (race.phase === "FINISHED" && race.finishTimeMs !== null) {
     result = `FINISH! ${formatTime(race.finishTimeMs)}${lastImproved ? " — NEW BEST" : ""}`;
   } else if (race.phase === "DNF") {
-    result = "DNF — 60 second limit reached. Run not saved.";
+    result = `DNF — ${TIMEOUT_S} second limit reached. Run not saved.`;
   }
 
   const raceStarted = race.phase !== "IDLE" && race.phase !== "COUNTDOWN";

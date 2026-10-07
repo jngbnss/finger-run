@@ -50,7 +50,7 @@ test("7 players: create, join by link, ready, synced countdown, finish, same res
   browser,
 }) => {
   // Seven WebGL pages on one machine are slow to set up.
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   const backend = new FakeBackend();
   const errors: string[] = [];
   const players = [];
@@ -112,8 +112,8 @@ test("7 players: create, join by link, ready, synced countdown, finish, same res
   for (const { page } of players) await expect(page.getByTestId("standings").locator("li")).toHaveCount(7);
 
   // Everyone runs and finishes; all devices show the identical leaderboard.
-  // A race lasts at most 60s (then DNF), plus the 5s countdown.
-  await Promise.all(players.map(({ page }) => expect(page.getByTestId("results")).toBeVisible({ timeout: 80_000 })));
+  // A race lasts at most 180s (then DNF), plus the 5s countdown.
+  await Promise.all(players.map(({ page }) => expect(page.getByTestId("results")).toBeVisible({ timeout: 200_000 })));
   const boards = [];
   for (const { page } of players) {
     boards.push(

@@ -7,8 +7,9 @@ import {
 } from "./powerCurve";
 import type { GhostSample, RaceSnapshot } from "./types";
 
-export const RACE_DISTANCE_M = 100;
-export const TIMEOUT_S = 60;
+export const RACE_DISTANCE_M = 500;
+/** Full power (9 m/s) needs about 56s, so the limit leaves room for slower runs. */
+export const TIMEOUT_S = 180;
 export const COUNTDOWN_S = 3;
 export const GO_DISPLAY_S = 0.4;
 export const MAX_FRAME_DT_S = 0.05;

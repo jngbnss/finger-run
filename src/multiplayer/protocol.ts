@@ -1,5 +1,5 @@
 /** Bump when message shapes change; peers on another version get VERSION_MISMATCH. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const MAX_PLAYERS = 7;
 export const MIN_PLAYERS = 2;

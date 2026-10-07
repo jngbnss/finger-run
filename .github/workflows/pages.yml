@@ -46,7 +46,7 @@ jobs:
   e2e:
     # Browser tests with fake camera + fake realtime; reported separately, does not block deploys.
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

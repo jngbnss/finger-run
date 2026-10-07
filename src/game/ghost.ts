@@ -1,9 +1,10 @@
-import { RACE_DISTANCE_M } from "./raceEngine";
+import { RACE_DISTANCE_M, SAMPLE_INTERVAL_MS, TIMEOUT_S } from "./raceEngine";
 import type { GhostSample, RaceSnapshot, StoredBest } from "./types";
 
-export const STORAGE_KEY = "finger-run.best.v1";
-/** 10Hz over 60s plus the 0ms and finish endpoints. */
-export const MAX_SAMPLES = 602;
+/** v2: 500m races. Bests from the old 100m race are ignored. */
+export const STORAGE_KEY = "finger-run.best.v2";
+/** 10Hz over the whole time limit plus the 0ms and finish endpoints. */
+export const MAX_SAMPLES = (TIMEOUT_S * 1000) / SAMPLE_INTERVAL_MS + 2;
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { animationScaleFromPower } from "./game/powerCurve";
+import { RACE_DISTANCE_M } from "./game/raceEngine";
 import { useInputPower } from "./input/useInputPower";
 import { laneColor } from "./multiplayer/lanes";
 import { MAX_PLAYERS, toRoomError, type ErrorCode } from "./multiplayer/protocol";
@@ -306,7 +307,9 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
               </div>
               <div>
                 <dt>Distance</dt>
-                <dd>{me.distanceM.toFixed(1)} / 100 m</dd>
+                <dd>
+                  {me.distanceM.toFixed(1)} / {RACE_DISTANCE_M} m
+                </dd>
               </div>
               <div>
                 <dt>Time</dt>
@@ -314,7 +317,7 @@ export function OnlineGame({ initialCode, drawing }: OnlineGameProps) {
               </div>
             </dl>
             <div className="progress" aria-hidden>
-              <div style={{ width: `${me.distanceM}%` }} />
+              <div style={{ width: `${(me.distanceM / RACE_DISTANCE_M) * 100}%` }} />
             </div>
           </section>
         )}

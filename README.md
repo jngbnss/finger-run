@@ -1,6 +1,6 @@
 # FINGER RUN 3D: Power Control Prototype
 
-A 100m sprint where **your index finger is the throttle**:
+A 500m race where **your index finger is the throttle**:
 
 `finger speed (camera) or slider 0..100 -> runner speed -> run animation speed`
 
@@ -52,7 +52,7 @@ The E2E test "ONLINE without Supabase settings" expects a build without `.env.lo
 | REMATCH / LEAVE ROOM | After the race: back to the lobby already READY, or leave. |
 | Upload drawing (SOLO) | PNG/JPG up to 5MB, shown as a flat image on the finish banner. Never uploaded. |
 
-A race ends at 100m (FINISHED) or after 60 seconds (DNF). DNF runs are never saved.
+A race ends at 500m (FINISHED) or after 180 seconds (DNF). Top speed is 9 m/s, so a perfect run takes about 56 seconds. DNF runs are never saved, and bests from the old 100m version are ignored.
 
 ### Skins (your drawing on your runner)
 
@@ -136,7 +136,7 @@ The heartbeat runs every 2s. A lobby or finished room with no heartbeat for 10 m
 
 ## Tests
 
-- `npm test -- --run`: the original 43 solo tests, plus camera signal math, calibration, clock offset, lanes, ranking and tie handling, sequence and timeout rules, snapshot interpolation, a 7-player fake-transport integration suite (full race, 8th rejected, disconnect/reconnect, host migration, host-drop cancellation, 60s DNF, rematch, missed final snapshot), and the SQL migration run in PGlite (lanes, `ROOM_FULL`, RLS, RPC-only writes, host checks, pruning, Realtime topic policies).
+- `npm test -- --run`: the original 43 solo tests, plus camera signal math, calibration, clock offset, lanes, ranking and tie handling, sequence and timeout rules, snapshot interpolation, a 7-player fake-transport integration suite (full race, 8th rejected, disconnect/reconnect, host migration, host-drop cancellation, 180s DNF, rematch, missed final snapshot), and the SQL migration run in PGlite (lanes, `ROOM_FULL`, RLS, RPC-only writes, host checks, pruning, Realtime topic policies).
 - `npx playwright test`: 7 contexts (desktop 1280×720, 390×844 and 360×740 phones) create, join by link, enable the synthetic camera, READY, share one race id and start time, finish, and show the same leaderboard; an 8th context gets `ROOM_FULL`; camera denial falls back to the slider; no camera shows `CAMERA_NOT_FOUND`; ONLINE without settings is disabled while SOLO works.
 
 ## GitHub Pages deployment
