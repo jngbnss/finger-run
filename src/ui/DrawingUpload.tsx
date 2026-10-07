@@ -1,0 +1,79 @@
+import { useRef, useState, type ChangeEvent } from "react";
+import { validateDrawingFile } from "./drawingValidation";
+
+interface DrawingUploadProps {
+  drawingUrl: string | null;
+  /** Receives a decoded, validated object URL; the owner revokes the previous one. */
+  onDrawing: (url: string) => void;
+}
+
+async function decodes(url: string): Promise<boolean> {
+  const img = new Image();
+  img.src = url;
+  try {
+    await img.decode();
+    return img.naturalWidth > 0 && img.naturalHeight > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function DrawingUpload({ drawingUrl, onDrawing }: DrawingUploadProps) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+
+  async function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const problem = validateDrawingFile(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+
+    setBusy(true);
+    const candidate = URL.createObjectURL(file);
+    const ok = await decodes(candidate);
+    setBusy(false);
+    if (!ok) {
+      // Keep the existing preview and flag.
+      URL.revokeObjectURL(candidate);
+      setError(`"${file.name}" could not be decoded as an image. The previous drawing was kept.`);
+      return;
+    }
+    setError(null);
+    onDrawing(candidate);
+  }
+
+  return (
+    <section className="card upload">
+      <h2>Finish-line drawing</h2>
+      <p className="notice">3D conversion is not connected in this prototype.</p>
+      <p className="hint">Your PNG/JPG (max 5MB) is shown as a flat image on the finish banner. It stays in this browser tab.</p>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg"
+        onChange={handleChange}
+        hidden
+      />
+      <button type="button" className="secondary" onClick={() => input.current?.click()} disabled={busy}>
+        {busy ? "Checking image…" : drawingUrl ? "Replace drawing" : "Upload drawing"}
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {drawingUrl && (
+        <figure className="preview">
+          <img src={drawingUrl} alt="Uploaded drawing preview" />
+          <figcaption>Shown on the finish banner as a 2D image</figcaption>
+        </figure>
+      )}
+    </section>
+  );
+}
